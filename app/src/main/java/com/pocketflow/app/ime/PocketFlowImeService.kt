@@ -1,5 +1,6 @@
 package com.pocketflow.app.ime
 
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.SystemClock
 import android.util.Log
@@ -15,8 +16,9 @@ import com.pocketflow.app.dictation.DictationBus
 import com.pocketflow.app.dictation.DictationState
 
 /**
- * Minimal keyboard. While selected, PocketFlow can type into RustDesk via
- * InputConnection key events (forwarded like keyboard input).
+ * Minimal keyboard. Stays selected so we can type into RustDesk, but keeps the
+ * soft-keyboard UI hidden when a hardware keyboard is attached — RustDesk breaks
+ * Ctrl+S / Ctrl+V while it thinks a soft keyboard is visible.
  */
 class PocketFlowImeService : InputMethodService() {
     private var labelView: TextView? = null
@@ -49,9 +51,19 @@ class PocketFlowImeService : InputMethodService() {
         super.onFinishInput()
     }
 
-    override fun onEvaluateInputViewShown(): Boolean = true
+    override fun onEvaluateInputViewShown(): Boolean {
+        // Hardware keyboard present → don't show IME chrome. RustDesk will keep
+        // using the physical-keyboard path for Ctrl+S / Ctrl+V.
+        if (hasHardwareKeyboard()) return false
+        return super.onEvaluateInputViewShown()
+    }
 
     override fun onEvaluateFullscreenMode(): Boolean = false
+
+    /** Never steal hardware keys — pass everything through to RustDesk/apps. */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = false
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = false
 
     override fun onCreateInputView(): View {
         val pad = (12 * resources.displayMetrics.density).toInt()
@@ -77,13 +89,18 @@ class PocketFlowImeService : InputMethodService() {
         }
     }
 
+    private fun hasHardwareKeyboard(): Boolean {
+        val c = resources.configuration
+        return c.keyboard == Configuration.KEYBOARD_QWERTY &&
+            c.hardKeyboardHidden != Configuration.HARDKEYBOARDHIDDEN_YES
+    }
+
     private fun connection(): InputConnection? =
         currentInputConnection ?: lastConnection
 
     private fun commitText(text: String): Boolean {
         val ic = connection() ?: return false
         return try {
-            requestShowSelf(0)
             ic.beginBatchEdit()
             ic.commitText(text, 1)
             ic.endBatchEdit()
@@ -95,42 +112,53 @@ class PocketFlowImeService : InputMethodService() {
         }
     }
 
-    /**
-     * Type using key events — RustDesk forwards these more reliably than commitText.
-     */
     fun typeAsKeyEventsInternal(text: String): Boolean {
-        val ic = connection()
+        // Briefly show so Flutter/RustDesk binds a TextInput connection, type, hide
+        // again so Ctrl shortcuts keep working afterward.
+        requestShowSelf(0)
+        var ic: InputConnection? = connection()
+        var tries = 0
+        while (ic == null && tries < 12) {
+            SystemClock.sleep(40)
+            ic = connection()
+            tries++
+        }
         if (ic == null) {
             Log.w(TAG, "typeAsKeyEvents: no InputConnection")
+            requestHideSelf(0)
             return false
         }
-        requestShowSelf(0)
+
         val kcm = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
         var any = false
-        for (ch in text) {
-            when (ch) {
-                '\n' -> {
-                    sendDownUp(ic, KeyEvent.KEYCODE_ENTER, 0)
-                    any = true
-                }
-                '\t' -> {
-                    sendDownUp(ic, KeyEvent.KEYCODE_TAB, 0)
-                    any = true
-                }
-                else -> {
-                    val events = kcm.getEvents(charArrayOf(ch))
-                    if (events == null) {
-                        ic.commitText(ch.toString(), 1)
+        try {
+            for (ch in text) {
+                when (ch) {
+                    '\n' -> {
+                        sendDownUp(ic, KeyEvent.KEYCODE_ENTER, 0)
                         any = true
-                    } else {
-                        for (ev in events) {
-                            ic.sendKeyEvent(ev)
+                    }
+                    '\t' -> {
+                        sendDownUp(ic, KeyEvent.KEYCODE_TAB, 0)
+                        any = true
+                    }
+                    else -> {
+                        val events = kcm.getEvents(charArrayOf(ch))
+                        if (events == null) {
+                            ic.commitText(ch.toString(), 1)
                             any = true
+                        } else {
+                            for (ev in events) {
+                                ic.sendKeyEvent(ev)
+                                any = true
+                            }
                         }
                     }
                 }
+                SystemClock.sleep(4)
             }
-            SystemClock.sleep(4)
+        } finally {
+            requestHideSelf(0)
         }
         Log.i(TAG, "typeAsKeyEvents ok=$any len=${text.length}")
         return any
@@ -138,7 +166,6 @@ class PocketFlowImeService : InputMethodService() {
 
     fun pasteClipboardChordInternal(): Boolean {
         val ic = connection() ?: return false
-        // Ctrl+V
         sendDownUp(ic, KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
         Log.i(TAG, "sent Ctrl+V via IME")
         return true
@@ -156,7 +183,6 @@ class PocketFlowImeService : InputMethodService() {
         )
         ic.sendKeyEvent(down)
         ic.sendKeyEvent(up)
-        // Also try IME helper for simple keys without meta.
         if (meta == 0) {
             sendDownUpKeyEvents(keyCode)
         }
@@ -184,6 +210,10 @@ class PocketFlowImeService : InputMethodService() {
         fun pasteClipboardChord(): Boolean {
             val ime = instance ?: return false
             return ime.pasteClipboardChordInternal()
+        }
+
+        fun hideInputUi() {
+            instance?.requestHideSelf(0)
         }
     }
 }

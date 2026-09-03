@@ -58,6 +58,8 @@ class DictationService : Service() {
         isArmed = true
         DictationBus.setArmed(true)
         TextDelivery.ensurePocketFlowIme(this)
+        // Hide IME chrome so RustDesk doesn't treat the session as soft-keyboard-active.
+        com.pocketflow.app.ime.PocketFlowImeService.hideInputUi()
         startAsForeground(READY_TEXT)
         if (DictationBus.status.value.state != DictationState.LISTENING &&
             DictationBus.status.value.state != DictationState.TRANSCRIBING

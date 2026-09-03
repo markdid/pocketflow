@@ -59,6 +59,28 @@ class DictationAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // Caps Lock mode: only intercept Caps Lock. Never touch Ctrl/Shift/letter
+        // combos so RustDesk keeps receiving Ctrl+S / Ctrl+V.
+        val mode = PocketFlowApp.instance.settings.hotkeyMode.value
+        if (mode == HotkeyMode.CAPS_LOCK) {
+            if (event.keyCode != KeyEvent.KEYCODE_CAPS_LOCK) return false
+            if (shouldLog(event)) {
+                Log.i(TAG, "caps action=${actionName(event.action)} repeat=${event.repeatCount}")
+            }
+            if (event.action == KeyEvent.ACTION_UP &&
+                chordHeld &&
+                !latched &&
+                activeTriggerKey == KeyEvent.KEYCODE_CAPS_LOCK
+            ) {
+                return onTriggerUp()
+            }
+            return when (event.action) {
+                KeyEvent.ACTION_DOWN -> onTriggerDown(event)
+                KeyEvent.ACTION_UP -> true
+                else -> false
+            }
+        }
+
         if (shouldLog(event)) {
             Log.i(
                 TAG,
@@ -73,15 +95,13 @@ class DictationAccessibilityService : AccessibilityService() {
         if (isCtrlKey(event.keyCode)) {
             ctrlDown = event.action != KeyEvent.ACTION_UP
             if (!ctrlDown) {
-                // Ctrl released — stop suppressing partner modifiers.
                 swallowedShift = false
                 swallowedAlt = false
             }
             return false
         }
 
-        // Swallow Shift/Alt while Ctrl is held so RustDesk never enters Alt-crosshair
-        // (or Shift-modified mouse modes) before Space arrives.
+        // Swallow Shift/Alt while Ctrl is held only for chord modes that need it.
         if (ctrlDown && shouldSwallowPartnerModifier(event)) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
@@ -97,7 +117,6 @@ class DictationAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // Finish hold on trigger key UP even if modifiers already released.
         if (event.action == KeyEvent.ACTION_UP &&
             chordHeld &&
             !latched &&
