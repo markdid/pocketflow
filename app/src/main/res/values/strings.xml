@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PocketFlow</string>
+    <string name="ime_label">PocketFlow Keyboard</string>
+    <string name="ime_subtype_label">English</string>
+    <string name="accessibility_service_description">PocketFlow listens for a Bluetooth keyboard shortcut (Fn or Ctrl+Alt) to start voice dictation, then inserts the transcribed text into the focused app — including RustDesk.</string>
+    <string name="notification_channel_name">Dictation</string>
+    <string name="notification_listening">Listening…</string>
+    <string name="notification_transcribing">Transcribing…</string>
+</resources>
