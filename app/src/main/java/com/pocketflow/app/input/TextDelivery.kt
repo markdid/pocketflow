@@ -9,13 +9,11 @@ import com.pocketflow.app.ime.PocketFlowImeService
 
 /**
  * Delivers transcript text into the focused app, with a RustDesk-oriented path:
- * temporarily select PocketFlow IME (needs WRITE_SECURE_SETTINGS), then type via
- * key events / commitText so Flutter_hbb forwards them like a soft/hardware keyboard.
+ * keep PocketFlow IME selected while armed, and type via key events / commitText.
  */
 object TextDelivery {
     private const val TAG = "PocketFlow"
-    private const val OUR_IME =
-        "com.pocketflow.app/.ime.PocketFlowImeService"
+    const val OUR_IME = "com.pocketflow.app/.ime.PocketFlowImeService"
 
     fun deliver(context: Context, text: String): DeliveryResult {
         if (text.isEmpty()) return DeliveryResult(false, "Empty transcript")
@@ -24,51 +22,46 @@ object TextDelivery {
         val remote = isRemoteDesktop(pkg)
         Log.i(TAG, "deliver len=${text.length} pkg=$pkg remote=$remote")
 
-        // Always keep a clipboard copy as safety net.
-        DictationAccessibilityService.copyToClipboard(text)
-
-        // 1) Prefer IME typing (works for local fields + RustDesk when IME is ours).
+        // 1) Prefer IME typing — no clipboard toast on success.
         val imeOk = deliverViaIme(context, text, forceSwitch = remote || !PocketFlowImeService.isActive())
         if (imeOk) {
-            return DeliveryResult(true, if (remote) "Typed into remote via keyboard" else "Inserted via keyboard")
+            return DeliveryResult(true, "")
         }
 
-        // 2) Local Android editable: accessibility paste / set-text.
+        // 2) Local Android editable.
         if (!remote && DictationAccessibilityService.insertText(text)) {
-            return DeliveryResult(true, "Inserted")
+            return DeliveryResult(true, "")
         }
 
-        // 3) RustDesk fallback: clipboard is set; try IME Ctrl+V chord.
+        DictationAccessibilityService.copyToClipboardQuiet(text)
+
         if (remote && PocketFlowImeService.pasteClipboardChord()) {
-            return DeliveryResult(true, "Pasted into remote (Ctrl+V)")
+            return DeliveryResult(true, "")
         }
 
-        // 4) Tap RustDesk's "Send clipboard keystrokes" action if visible.
         if (remote && DictationAccessibilityService.clickByText("Send clipboard keystrokes")) {
-            return DeliveryResult(true, "Sent via RustDesk clipboard keystrokes")
+            return DeliveryResult(true, "")
         }
         if (remote && DictationAccessibilityService.clickByText("clipboard keystrokes")) {
-            return DeliveryResult(true, "Sent via RustDesk clipboard keystrokes")
+            return DeliveryResult(true, "")
         }
 
-        // 5) Last-ditch: shell `input text` (works if the environment allows inject).
         if (typeViaShellInput(text)) {
-            return DeliveryResult(true, "Typed via system input")
+            return DeliveryResult(true, "")
         }
 
         return DeliveryResult(
             false,
             if (remote) {
-                "Copied — in RustDesk open ⋮ Actions → Send clipboard keystrokes"
+                "In RustDesk: Actions → Send clipboard keystrokes"
             } else {
-                "Copied to clipboard"
+                "Ready on clipboard"
             },
         )
     }
 
     private fun typeViaShellInput(text: String): Boolean {
         return try {
-            // `input text` treats spaces as %s and is ASCII-oriented.
             val escaped = text
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -89,37 +82,21 @@ object TextDelivery {
     }
 
     private fun deliverViaIme(context: Context, text: String, forceSwitch: Boolean): Boolean {
-        var previousIme: String? = null
         try {
-            if (forceSwitch) {
-                previousIme = currentIme(context)
-                if (previousIme != OUR_IME) {
-                    if (!switchIme(context, OUR_IME)) {
-                        Log.w(TAG, "IME switch failed (need WRITE_SECURE_SETTINGS)")
-                    } else {
-                        // Give the system a beat to bind the IME to the focused app.
-                        SystemClock.sleep(250)
-                    }
+            if (forceSwitch && currentIme(context) != OUR_IME) {
+                if (!switchIme(context, OUR_IME)) {
+                    Log.w(TAG, "IME switch failed (need WRITE_SECURE_SETTINGS)")
+                } else {
+                    SystemClock.sleep(250)
                 }
             }
 
-            // Try key-event typing first — closer to hardware keyboard (RustDesk-friendly).
-            if (PocketFlowImeService.typeAsKeyEvents(text)) {
-                return true
-            }
-            if (PocketFlowImeService.commitTextIfActive(text)) {
-                return true
-            }
+            if (PocketFlowImeService.typeAsKeyEvents(text)) return true
+            if (PocketFlowImeService.commitTextIfActive(text)) return true
             return false
-        } finally {
-            // Stay on PocketFlow while armed for seamless repeat dictation in RustDesk.
-            // Only restore if we switched away from a different IME and delivery failed paths
-            // that need Gboard — actually keep PocketFlow; user can change back in settings.
-            // If we switched and want to restore non-remote:
-            val pkg = DictationAccessibilityService.focusedPackage().orEmpty()
-            if (!isRemoteDesktop(pkg) && previousIme != null && previousIme != OUR_IME) {
-                switchIme(context, previousIme)
-            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "deliverViaIme failed", t)
+            return false
         }
     }
 
@@ -134,7 +111,6 @@ object TextDelivery {
                 Settings.Secure.DEFAULT_INPUT_METHOD,
                 imeId,
             )
-            // Nudge IMM
             Log.i(TAG, "switchIme $imeId ok=$ok")
             ok
         } catch (t: Throwable) {

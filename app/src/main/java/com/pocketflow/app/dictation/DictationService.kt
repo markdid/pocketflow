@@ -107,7 +107,6 @@ class DictationService : Service() {
         }
 
         if (!armed) arm()
-        // Prefer PocketFlow IME so RustDesk/local fields get a live InputConnection.
         TextDelivery.ensurePocketFlowIme(this)
         updateNotification(getString(R.string.notification_listening))
         vibrate(longArrayOf(0, 40))

@@ -308,9 +308,18 @@ class DictationAccessibilityService : AccessibilityService() {
             instance?.rootInActiveWindow?.packageName?.toString()
 
         fun copyToClipboard(text: String) {
+            copyToClipboardQuiet(text)
+        }
+
+        /** Prefer this — marks clip sensitive to avoid the Android 13+ preview toast. */
+        fun copyToClipboardQuiet(text: String) {
             val service = instance ?: return
             val clipboard = service.getSystemService(ClipboardManager::class.java)
-            clipboard.setPrimaryClip(ClipData.newPlainText("PocketFlow", text))
+            val clip = ClipData.newPlainText("", text)
+            clip.description.extras = android.os.PersistableBundle().apply {
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+            clipboard.setPrimaryClip(clip)
         }
 
         fun clickByText(substring: String): Boolean {
@@ -333,12 +342,11 @@ class DictationAccessibilityService : AccessibilityService() {
 
         fun insertText(text: String): Boolean {
             val service = instance ?: return false
-            copyToClipboard(text)
+            // Do not copy here — callers decide; avoids clipboard toast on success.
 
             val pkg = focusedPackage()
             Log.i(TAG, "insertText into pkg=$pkg")
 
-            // Remote desktop canvases are not Android EditTexts — paste/setText usually fail.
             if (pkg != null && isRemoteDesktopPackage(pkg)) {
                 Log.i(TAG, "remote desktop detected — skip a11y insert, need IME/clipboard")
                 return false
@@ -349,20 +357,22 @@ class DictationAccessibilityService : AccessibilityService() {
                 ?: service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
             if (focus != null) {
-                if (focus.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
-                    Log.i(TAG, "inserted via PASTE")
-                    return true
-                }
                 if (focus.isEditable && setTextPreservingRealContent(focus, text)) {
                     Log.i(TAG, "inserted via SET_TEXT")
+                    return true
+                }
+                copyToClipboardQuiet(text)
+                if (focus.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+                    Log.i(TAG, "inserted via PASTE")
                     return true
                 }
             }
 
             val editable = findEditable(root)
             if (editable != null) {
-                if (editable.performAction(AccessibilityNodeInfo.ACTION_PASTE)) return true
                 if (setTextPreservingRealContent(editable, text)) return true
+                copyToClipboardQuiet(text)
+                if (editable.performAction(AccessibilityNodeInfo.ACTION_PASTE)) return true
             }
             return false
         }

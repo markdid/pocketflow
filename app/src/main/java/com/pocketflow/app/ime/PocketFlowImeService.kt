@@ -51,6 +51,8 @@ class PocketFlowImeService : InputMethodService() {
 
     override fun onEvaluateInputViewShown(): Boolean = true
 
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
     override fun onCreateInputView(): View {
         val pad = (12 * resources.displayMetrics.density).toInt()
         return TextView(this).apply {
@@ -118,7 +120,6 @@ class PocketFlowImeService : InputMethodService() {
                 else -> {
                     val events = kcm.getEvents(charArrayOf(ch))
                     if (events == null) {
-                        // Fallback for chars without key mapping.
                         ic.commitText(ch.toString(), 1)
                         any = true
                     } else {
