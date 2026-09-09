@@ -14,6 +14,8 @@ import com.pocketflow.app.data.HotkeyMode
 import com.pocketflow.app.dictation.DictationBus
 import com.pocketflow.app.dictation.DictationService
 import com.pocketflow.app.dictation.DictationState
+import com.pocketflow.app.ime.PocketFlowImeService
+import com.pocketflow.app.input.TextDelivery
 
 /**
  * Global Bluetooth hotkeys + text insert.
@@ -42,11 +44,20 @@ class DictationAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         DictationBus.setAccessibilityConnected(true)
+        val info = serviceInfo
+        info.eventTypes = info.eventTypes or
+            AccessibilityEvent.TYPE_VIEW_CLICKED or
+            AccessibilityEvent.TYPE_VIEW_FOCUSED
+        serviceInfo = info
+        // Critical: never leave SHOW_MODE_HIDDEN stuck — it blocks IME binding
+        // into RustDesk and breaks dictation typing.
+        softKeyboardController.setShowMode(SHOW_MODE_AUTO)
         Log.i(TAG, "Accessibility connected")
     }
 
     override fun onDestroy() {
         cancelPendingStop()
+        runCatching { softKeyboardController.setShowMode(SHOW_MODE_AUTO) }
         if (instance === this) {
             instance = null
             DictationBus.setAccessibilityConnected(false)
@@ -55,6 +66,19 @@ class DictationAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+
+    /** Ensure PocketFlow IME is selected; do not force-hide the soft keyboard. */
+    fun prepareForDictation() {
+        softKeyboardController.setShowMode(SHOW_MODE_AUTO)
+        TextDelivery.ensurePocketFlowIme(this)
+        PocketFlowImeService.hideInputUi()
+    }
+
+    fun prepareForRemoteKeyboard() = prepareForDictation()
+
+    fun clearSoftKeyboardOverride() {
+        softKeyboardController.setShowMode(SHOW_MODE_AUTO)
+    }
 
     override fun onInterrupt() = Unit
 
@@ -323,22 +347,66 @@ class DictationAccessibilityService : AccessibilityService() {
 
         fun isEnabled(): Boolean = instance != null
 
-        fun focusedPackage(): String? =
-            instance?.rootInActiveWindow?.packageName?.toString()
-
-        fun copyToClipboard(text: String) {
-            copyToClipboardQuiet(text)
+        fun prepareForDictation() {
+            instance?.prepareForDictation()
         }
 
-        /** Prefer this — marks clip sensitive to avoid the Android 13+ preview toast. */
-        fun copyToClipboardQuiet(text: String) {
+        fun prepareForRemoteKeyboard() {
+            instance?.prepareForRemoteKeyboard()
+        }
+
+        fun clearSoftKeyboardOverride() {
+            instance?.clearSoftKeyboardOverride()
+        }
+
+        fun focusedPackage(): String? {
+            val service = instance ?: return null
+            // Prefer the focused accessibility window — rootInActiveWindow is often
+            // stale/null right after dictation and made us miss RustDesk.
+            try {
+                for (window in service.windows) {
+                    if (window.isFocused || window.isActive) {
+                        val pkg = window.root?.packageName?.toString()
+                        if (!pkg.isNullOrBlank()) return pkg
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "windows lookup failed", t)
+            }
+            return service.rootInActiveWindow?.packageName?.toString()
+        }
+
+        /** True if RustDesk (or another remote desktop) is on screen. */
+        fun isRemoteDesktopVisible(): Boolean {
+            val service = instance ?: return false
+            try {
+                for (window in service.windows) {
+                    val pkg = window.root?.packageName?.toString().orEmpty()
+                    if (TextDelivery.isRemoteDesktop(pkg)) return true
+                    val title = window.title?.toString().orEmpty()
+                    if (title.contains("rustdesk", ignoreCase = true)) return true
+                }
+            } catch (_: Throwable) {
+            }
+            return TextDelivery.isRemoteDesktop(focusedPackage().orEmpty())
+        }
+
+        fun copyToClipboard(text: String) {
+            copyToClipboardForRemote(text)
+        }
+
+        /**
+         * Plain clipboard copy so RustDesk can sync/read it.
+         * Do NOT mark IS_SENSITIVE — that shows password dots and blocks other apps
+         * from reading the clip (breaks RustDesk paste entirely).
+         */
+        fun copyToClipboardQuiet(text: String) = copyToClipboardForRemote(text)
+
+        fun copyToClipboardForRemote(text: String) {
             val service = instance ?: return
             val clipboard = service.getSystemService(ClipboardManager::class.java)
-            val clip = ClipData.newPlainText("", text)
-            clip.description.extras = android.os.PersistableBundle().apply {
-                putBoolean("android.content.extra.IS_SENSITIVE", true)
-            }
-            clipboard.setPrimaryClip(clip)
+            clipboard.setPrimaryClip(ClipData.newPlainText("PocketFlow", text))
+            Log.i(TAG, "clipboard set len=${text.length}")
         }
 
         fun clickByText(substring: String): Boolean {

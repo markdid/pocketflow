@@ -19,6 +19,9 @@ object DictationBus {
     private val _accessibilityConnected = MutableStateFlow(false)
     val accessibilityConnected: StateFlow<Boolean> = _accessibilityConnected.asStateFlow()
 
+    private val _transcriptHistory = MutableStateFlow<List<String>>(emptyList())
+    val transcriptHistory: StateFlow<List<String>> = _transcriptHistory.asStateFlow()
+
     @Volatile
     var textCommitter: ((String) -> Boolean)? = null
 
@@ -28,6 +31,14 @@ object DictationBus {
 
     fun setAccessibilityConnected(value: Boolean) {
         _accessibilityConnected.value = value
+    }
+
+    fun pushTranscript(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        _transcriptHistory.update { current ->
+            (listOf(trimmed) + current.filterNot { it == trimmed }).take(5)
+        }
     }
 
     fun update(transform: (DictationStatus) -> DictationStatus) {

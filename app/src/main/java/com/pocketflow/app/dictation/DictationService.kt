@@ -17,6 +17,7 @@ import com.pocketflow.app.MainActivity
 import com.pocketflow.app.PocketFlowApp
 import com.pocketflow.app.R
 import com.pocketflow.app.audio.WavAudioRecorder
+import com.pocketflow.app.groq.GroqPostProcessor
 import com.pocketflow.app.groq.GroqTranscriber
 import com.pocketflow.app.hotkey.DictationAccessibilityService
 import com.pocketflow.app.input.TextDelivery
@@ -36,6 +37,7 @@ class DictationService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val recorder = WavAudioRecorder()
     private val transcriber = GroqTranscriber()
+    private val postProcessor = GroqPostProcessor()
     private var audioFile: File? = null
     private var armed = false
 
@@ -110,6 +112,7 @@ class DictationService : Service() {
 
         if (!armed) arm()
         TextDelivery.ensurePocketFlowIme(this)
+        DictationAccessibilityService.prepareForDictation()
         updateNotification(getString(R.string.notification_listening))
         vibrate(longArrayOf(0, 40))
 
@@ -137,7 +140,14 @@ class DictationService : Service() {
             try {
                 val text = withContext(Dispatchers.IO) {
                     requireNotNull(file) { "No audio captured" }
-                    transcriber.transcribe(apiKey, file, language)
+                    val raw = transcriber.transcribe(apiKey, file, language)
+                    if (raw.isBlank()) return@withContext ""
+                    try {
+                        postProcessor.clean(apiKey, raw).ifBlank { raw }
+                    } catch (t: Throwable) {
+                        android.util.Log.w("PocketFlow", "cleanup failed, using raw transcript", t)
+                        raw
+                    }
                 }
                 deliverText(text)
             } catch (t: Throwable) {
@@ -156,6 +166,7 @@ class DictationService : Service() {
     }
 
     private fun deliverText(text: String) {
+        DictationBus.pushTranscript(text)
         val result = TextDelivery.deliver(this, text)
         DictationBus.setState(
             DictationState.IDLE,

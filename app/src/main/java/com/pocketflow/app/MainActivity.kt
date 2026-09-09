@@ -1,6 +1,8 @@
 package com.pocketflow.app
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
@@ -8,7 +10,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -132,13 +138,61 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     settings.apiKey.collect { refreshChecks() }
                 }
+                launch {
+                    DictationBus.transcriptHistory.collect { history ->
+                        renderTranscriptHistory(history)
+                    }
+                }
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        // Settings toggles / desktop-mode rebinds can leave the in-memory flag stale.
+        if (com.pocketflow.app.hotkey.DictationAccessibilityService.isEnabled()) {
+            DictationBus.setAccessibilityConnected(true)
+        }
         refreshChecks()
+    }
+
+    private fun renderTranscriptHistory(history: List<String>) {
+        val container = binding.transcriptHistory
+        container.removeAllViews()
+        binding.transcriptHistoryEmpty.visibility =
+            if (history.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+
+        val density = resources.displayMetrics.density
+        history.forEach { text ->
+            val row = TextView(this).apply {
+                this.text = text
+                setTextColor(0xFF0B1220.toInt())
+                textSize = 15f
+                setPadding(
+                    (12 * density).toInt(),
+                    (12 * density).toInt(),
+                    (12 * density).toInt(),
+                    (12 * density).toInt(),
+                )
+                setBackgroundColor(0xFFF8FAFC.toInt())
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { copyTranscript(text) }
+            }
+            val lp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                bottomMargin = (8 * density).toInt()
+            }
+            container.addView(row, lp)
+        }
+    }
+
+    private fun copyTranscript(text: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText("PocketFlow", text))
+        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun defaultMessage(): String {

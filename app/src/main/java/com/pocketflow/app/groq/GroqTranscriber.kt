@@ -38,7 +38,7 @@ class GroqTranscriber(
             .addFormDataPart("response_format", "json")
             .addFormDataPart(
                 "prompt",
-                "Dictation for computer control. Prefer clear punctuation.",
+                "Clear dictation with correct punctuation. Questions end with ?. Skip filler like um and uh.",
             )
             .build()
 

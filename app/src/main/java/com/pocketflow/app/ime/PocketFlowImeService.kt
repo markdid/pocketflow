@@ -16,13 +16,16 @@ import com.pocketflow.app.dictation.DictationBus
 import com.pocketflow.app.dictation.DictationState
 
 /**
- * Minimal keyboard. Stays selected so we can type into RustDesk, but keeps the
- * soft-keyboard UI hidden when a hardware keyboard is attached — RustDesk breaks
- * Ctrl+S / Ctrl+V while it thinks a soft keyboard is visible.
+ * Minimal keyboard. Stays selected so we can type into RustDesk char-by-char
+ * (the path that previously worked). Soft-keyboard chrome stays hidden with a
+ * HW keyboard except briefly while injecting.
  */
 class PocketFlowImeService : InputMethodService() {
     private var labelView: TextView? = null
     private var lastConnection: InputConnection? = null
+
+    @Volatile
+    private var forceShowForTyping = false
 
     override fun onCreate() {
         super.onCreate()
@@ -52,15 +55,19 @@ class PocketFlowImeService : InputMethodService() {
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
-        // Hardware keyboard present → don't show IME chrome. RustDesk will keep
-        // using the physical-keyboard path for Ctrl+S / Ctrl+V.
+        if (forceShowForTyping) return true
         if (hasHardwareKeyboard()) return false
         return super.onEvaluateInputViewShown()
     }
 
+    override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
+        if (forceShowForTyping) return true
+        if (hasHardwareKeyboard()) return false
+        return super.onShowInputRequested(flags, configChange)
+    }
+
     override fun onEvaluateFullscreenMode(): Boolean = false
 
-    /** Never steal hardware keys — pass everything through to RustDesk/apps. */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = false
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = false
@@ -112,26 +119,31 @@ class PocketFlowImeService : InputMethodService() {
         }
     }
 
+    /**
+     * Char-by-char key events — restored from the last known-working build.
+     * Do not one-shot commitText the whole string; that stopped reaching RustDesk.
+     */
     fun typeAsKeyEventsInternal(text: String): Boolean {
-        // Briefly show so Flutter/RustDesk binds a TextInput connection, type, hide
-        // again so Ctrl shortcuts keep working afterward.
-        requestShowSelf(0)
-        var ic: InputConnection? = connection()
-        var tries = 0
-        while (ic == null && tries < 12) {
-            SystemClock.sleep(40)
-            ic = connection()
-            tries++
-        }
-        if (ic == null) {
-            Log.w(TAG, "typeAsKeyEvents: no InputConnection")
-            requestHideSelf(0)
-            return false
-        }
-
-        val kcm = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-        var any = false
+        forceShowForTyping = true
         try {
+            requestShowSelf(0)
+            updateInputViewShown()
+            var ic: InputConnection? = connection()
+            var tries = 0
+            while (ic == null && tries < 25) {
+                SystemClock.sleep(40)
+                requestShowSelf(0)
+                ic = connection()
+                tries++
+            }
+            if (ic == null) {
+                Log.w(TAG, "typeAsKeyEvents: no InputConnection")
+                return false
+            }
+            Log.i(TAG, "typeAsKeyEvents IC ok after ${tries * 40}ms len=${text.length}")
+
+            val kcm = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
+            var any = false
             for (ch in text) {
                 when (ch) {
                     '\n' -> {
@@ -157,11 +169,12 @@ class PocketFlowImeService : InputMethodService() {
                 }
                 SystemClock.sleep(4)
             }
+            Log.i(TAG, "typeAsKeyEvents ok=$any len=${text.length}")
+            return any
         } finally {
+            forceShowForTyping = false
             requestHideSelf(0)
         }
-        Log.i(TAG, "typeAsKeyEvents ok=$any len=${text.length}")
-        return any
     }
 
     fun pasteClipboardChordInternal(): Boolean {

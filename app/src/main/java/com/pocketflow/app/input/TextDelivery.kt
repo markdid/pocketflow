@@ -8,77 +8,45 @@ import com.pocketflow.app.hotkey.DictationAccessibilityService
 import com.pocketflow.app.ime.PocketFlowImeService
 
 /**
- * Delivers transcript text into the focused app, with a RustDesk-oriented path:
- * keep PocketFlow IME selected while armed, and type via key events / commitText.
+ * Delivers transcript text into the focused app.
+ * RustDesk path: IME typing only. Never auto-copy (clipboard overlay stole the UX).
  */
 object TextDelivery {
     private const val TAG = "PocketFlow"
     const val OUR_IME = "com.pocketflow.app/.ime.PocketFlowImeService"
+    const val GBOARD_IME =
+        "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
 
     fun deliver(context: Context, text: String): DeliveryResult {
         if (text.isEmpty()) return DeliveryResult(false, "Empty transcript")
 
         val pkg = DictationAccessibilityService.focusedPackage().orEmpty()
-        val remote = isRemoteDesktop(pkg)
+        val remote = isRemoteDesktop(pkg) ||
+            DictationAccessibilityService.isRemoteDesktopVisible()
         Log.i(TAG, "deliver len=${text.length} pkg=$pkg remote=$remote")
 
-        // 1) Prefer IME typing — no clipboard toast on success.
-        val imeOk = deliverViaIme(context, text, forceSwitch = remote || !PocketFlowImeService.isActive())
-        if (imeOk) {
+        DictationAccessibilityService.clearSoftKeyboardOverride()
+        ensurePocketFlowIme(context)
+        SystemClock.sleep(100)
+
+        // Always try IME typing first — this is what reaches RustDesk.
+        if (deliverViaIme(context, text, forceSwitch = true)) {
             return DeliveryResult(true, "")
         }
 
-        // 2) Local Android editable.
         if (!remote && DictationAccessibilityService.insertText(text)) {
             return DeliveryResult(true, "")
         }
 
-        DictationAccessibilityService.copyToClipboardQuiet(text)
-
-        if (remote && PocketFlowImeService.pasteClipboardChord()) {
-            return DeliveryResult(true, "")
-        }
-
-        if (remote && DictationAccessibilityService.clickByText("Send clipboard keystrokes")) {
-            return DeliveryResult(true, "")
-        }
-        if (remote && DictationAccessibilityService.clickByText("clipboard keystrokes")) {
-            return DeliveryResult(true, "")
-        }
-
-        if (typeViaShellInput(text)) {
-            return DeliveryResult(true, "")
-        }
-
+        Log.w(TAG, "deliver failed (remote=$remote); not copying to clipboard")
         return DeliveryResult(
             false,
             if (remote) {
-                "In RustDesk: Actions → Send clipboard keystrokes"
+                "Couldn't type into RustDesk — click the Mac text field, then dictate again"
             } else {
-                "Ready on clipboard"
+                "Couldn't insert text"
             },
         )
-    }
-
-    private fun typeViaShellInput(text: String): Boolean {
-        return try {
-            val escaped = text
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace(" ", "%s")
-                .replace("'", "")
-                .replace("\n", "%s")
-            val proc = ProcessBuilder("sh", "-c", "input text \"$escaped\"")
-                .redirectErrorStream(true)
-                .start()
-            val code = proc.waitFor()
-            val out = proc.inputStream.bufferedReader().readText()
-            Log.i(TAG, "shell input exit=$code out=$out")
-            code == 0
-        } catch (t: Throwable) {
-            Log.w(TAG, "shell input failed", t)
-            false
-        }
     }
 
     private fun deliverViaIme(context: Context, text: String, forceSwitch: Boolean): Boolean {
@@ -92,7 +60,8 @@ object TextDelivery {
             }
 
             if (PocketFlowImeService.typeAsKeyEvents(text)) return true
-            if (PocketFlowImeService.commitTextIfActive(text)) return true
+            // Do not fall back to whole-string commitText for remote — that path
+            // reported success without typing into RustDesk.
             return false
         } catch (t: Throwable) {
             Log.w(TAG, "deliverViaIme failed", t)
@@ -124,7 +93,12 @@ object TextDelivery {
         return switchIme(context, OUR_IME)
     }
 
-    private fun isRemoteDesktop(pkg: String): Boolean {
+    fun switchToGboard(context: Context): Boolean {
+        if (currentIme(context) == GBOARD_IME) return true
+        return switchIme(context, GBOARD_IME)
+    }
+
+    fun isRemoteDesktop(pkg: String): Boolean {
         val p = pkg.lowercase()
         return p.contains("rustdesk") ||
             p.contains("flutter_hbb") ||
