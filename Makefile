@@ -35,15 +35,15 @@ help: ## Show this help
 # Run
 ###################
 
-.PHONY: run run-prod run-chrome release preview
-run: ## Run the app (ENV=dev)
-	@$(FLUTTER) run --dart-define=ENV=$(ENV)
+.PHONY: run run-prod release preview
+# Debug runs pick up GROQ_API_KEY from .env (gitignored) when it exists.
+DEFINE_ENV_FILE := $(if $(wildcard .env),--dart-define-from-file=.env,)
+
+run: ## Run the app (ENV=dev); uses GROQ_API_KEY from .env if present
+	@$(FLUTTER) run --dart-define=ENV=$(ENV) $(DEFINE_ENV_FILE)
 
 run-prod: ## Run the app against production
 	@$(FLUTTER) run --dart-define=ENV=prod
-
-run-chrome: ## Run the app in Chrome
-	@$(FLUTTER) run -d chrome --dart-define=ENV=$(ENV)
 
 release: ## Run in release mode against production
 	@$(FLUTTER) run --release --dart-define=ENV=prod
