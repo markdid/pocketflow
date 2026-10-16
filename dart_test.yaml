@@ -1,0 +1,3 @@
+tags:
+  golden:
+    description: "Golden image tests — platform-sensitive, regenerate with --update-goldens on the target platform"
