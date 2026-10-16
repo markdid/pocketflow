@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +7,7 @@ import 'package:pocketflow/features/home/state/home_notifiers.dart';
 import 'package:pocketflow/features/home/views/home_view.dart';
 import 'package:pocketflow/features/settings/state/settings_notifier.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
+import 'package:pocketflow/platform/desktop_dictation.dart';
 import 'package:pocketflow/router/router.dart';
 import 'package:pocketflow/ui/widgets/structure/view_shell.dart';
 
@@ -37,6 +36,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     // Coming back from system settings (accessibility, keyboards, permissions).
     if (state == AppLifecycleState.resumed) {
       ref.read(androidStatusProvider.notifier).refresh();
+      ref.read(desktopDictationProvider.notifier).refreshPermissions();
       ref.read(historyProvider.notifier).refresh();
     }
   }
@@ -45,6 +45,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
   Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
     final android = ref.watch(androidStatusProvider).value;
+    final desktop = ref.watch(desktopDictationProvider);
     final apiKey = ref.watch(settingsProvider).value?.apiKey ?? '';
     final bridge = ref.read(androidBridgeProvider);
     final statusNotifier = ref.read(androidStatusProvider.notifier);
@@ -55,13 +56,17 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
         loading: () => const ViewShell.loading(),
         error: (error, _) => ViewShell.error(message: error.toString(), onRetry: () => ref.invalidate(historyProvider)),
         data: (entries) => HomeView(
-          setupSteps: _setupSteps(context, apiKey: apiKey, android: android, bridge: bridge),
+          setupSteps: _setupSteps(context, apiKey: apiKey, android: android, bridge: bridge, desktop: desktop),
           history: entries,
           android: android,
           onArmedChanged: (value) => statusNotifier.setArmed(armed: value),
           onWalkModeChanged: (value) => statusNotifier.setWalkMode(enabled: value),
           onDictate: bridge.toggleDictation,
-          desktopHint: Platform.isMacOS ? 'Hold Right ⌥ Option anywhere to dictate. Release to insert.' : null,
+          desktopHint: desktop == null
+              ? null
+              : desktop.message.isNotEmpty
+              ? desktop.message
+              : 'Hold Right ⌥ Option anywhere to dictate, release to insert. Or tap it to start and tap again to stop.',
           onCopy: (entry) => _copy(context, entry),
           onDelete: (entry) => _confirmDelete(context, entry),
         ),
@@ -74,7 +79,9 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     required String apiKey,
     required AndroidStatus? android,
     required AndroidBridge bridge,
+    required DesktopDictationState? desktop,
   }) {
+    final desktopNotifier = ref.read(desktopDictationProvider.notifier);
     return [
       SetupStep(
         title: 'Add your Groq API key',
@@ -100,6 +107,20 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
           subtitle: 'A voice keyboard you can switch to, and the way text reaches remote desktop apps.',
           done: android.keyboardEnabled,
           onTap: bridge.openKeyboardSettings,
+        ),
+      ],
+      if (desktop != null) ...[
+        SetupStep(
+          title: 'Allow the microphone',
+          subtitle: 'To hear you while you hold the dictation key.',
+          done: desktop.microphone,
+          onTap: desktopNotifier.requestMicrophone,
+        ),
+        SetupStep(
+          title: 'Allow Accessibility',
+          subtitle: 'Lets PocketFlow notice the dictation key and paste into the app you’re using.',
+          done: desktop.accessibility,
+          onTap: desktopNotifier.requestAccessibility,
         ),
       ],
     ];

@@ -8,7 +8,8 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) => Setting
 class SettingsRepository {
   SettingsRepository({JsonFileStore? store, FlutterSecureStorage? secureStorage})
     : _store = store ?? JsonFileStore(),
-      _secure = secureStorage ?? const FlutterSecureStorage();
+      // The data-protection keychain needs a signed team entitlement; the login keychain works for local builds.
+      _secure = secureStorage ?? const FlutterSecureStorage(mOptions: MacOsOptions(usesDataProtectionKeychain: false));
 
   final JsonFileStore _store;
   final FlutterSecureStorage _secure;
