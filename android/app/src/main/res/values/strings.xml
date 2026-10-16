@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">PocketFlow inserts your dictated text into the app you\'re using, shows a mic button next to text fields, and turns keyboard hotkeys into dictation. Right after inserting text it briefly watches that field, so a name you correct can be spelled right next time. Nothing you type is stored or sent anywhere except the corrected words.</string>
+    <string name="ime_subtype_label">Voice</string>
+</resources>
