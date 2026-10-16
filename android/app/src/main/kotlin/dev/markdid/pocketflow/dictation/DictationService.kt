@@ -56,6 +56,9 @@ class DictationService : Service() {
     private var targetApp: String? = null
     private var silenceJob: Job? = null
 
+    /** Stop pressed while the headset link was still opening (a quick hold-to-talk release). */
+    private var stopRequested = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -128,6 +131,7 @@ class DictationService : Service() {
         publishArmed()
 
         recordingMemo = memo
+        stopRequested = false
         targetApp = if (memo) null else TextDelivery.targetApp()
         if (!memo) TextDelivery.prepareForRemoteDesktop(this)
         setState(DictationState.listening, if (memo) "Recording memo…" else "Listening…")
@@ -164,6 +168,7 @@ class DictationService : Service() {
                 },
             )
             if (memo) watchForSilence(capture)
+            if (stopRequested) stopAndProcess()
         }
     }
 
@@ -194,7 +199,11 @@ class DictationService : Service() {
     }
 
     private fun stopAndProcess() {
-        val capture = recorder ?: return
+        val capture = recorder
+        if (capture == null) {
+            if (DictationBus.status.value.state == DictationState.listening) stopRequested = true
+            return
+        }
         val file = audioFile ?: return
         val memo = recordingMemo
         recorder = null
