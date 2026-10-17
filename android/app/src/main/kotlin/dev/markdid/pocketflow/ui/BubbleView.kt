@@ -15,12 +15,11 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * The floating dictation button. Unlike the in-app orb it has to read at a glance over any app, light or dark, so
- * every state keeps strong contrast: a solid disc with a mic at rest, solid blue with live level bars while
- * listening, and a spinning ring while writing.
+ * The floating bubble's listening look: a solid blue disc with live white level bars, which reads at a glance over
+ * any app. (At rest and while writing the bubble shows the pearl [OrbView].)
  */
 class BubbleView(context: Context) : View(context) {
-    enum class Mode { IDLE, LISTENING, PROCESSING }
+    enum class Mode { IDLE, LISTENING }
 
     var mode = Mode.IDLE
     var levelProvider: () -> Float = { 0f }
@@ -94,15 +93,6 @@ class BubbleView(context: Context) : View(context) {
             mic?.draw(canvas)
         }
 
-        if (mode == Mode.PROCESSING) {
-            val ringR = r * 1.18f
-            oval.set(cx - ringR, cy - ringR, cx + ringR, cy + ringR)
-            stroke.color = if (dark) ACCENT_ON_DARK else ACCENT
-            stroke.strokeWidth = r * 0.13f
-            stroke.strokeCap = Paint.Cap.ROUND
-            canvas.drawArc(oval, (now * 360f) % 360f, 100f, false, stroke)
-        }
-
         if (isShown && !paused) postInvalidateOnAnimation()
     }
 
@@ -133,7 +123,6 @@ class BubbleView(context: Context) : View(context) {
 
     private companion object {
         const val ACCENT = 0xFF0A6CDB.toInt()
-        const val ACCENT_ON_DARK = 0xFF5AA2FF.toInt()
         const val INK = 0xFF0F1115.toInt()
     }
 }

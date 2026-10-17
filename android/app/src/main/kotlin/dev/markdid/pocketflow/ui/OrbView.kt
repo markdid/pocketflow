@@ -9,7 +9,6 @@ import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.SweepGradient
 import android.os.SystemClock
 import android.view.View
 import androidx.core.content.ContextCompat
@@ -140,25 +139,19 @@ class OrbView(context: Context) : View(context) {
         } else if (showMicWhenIdle && mic != null) {
             val s = (base * 0.6f).toInt()
             mic.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
-            mic.setTint(if (mode == Mode.PROCESSING) p.accent else p.glyph)
+            mic.setTint(p.glyph)
             mic.draw(canvas)
         }
 
         if (processing > 0.01f) {
-            val r = base * 1.24f
+            // Writing: a solid accent arc spinning around the resting orb.
+            val r = base * 1.2f
             oval.set(cx - r, cy - r, cx + r, cy + r)
-            val startDegrees = Math.toDegrees((spin * 1.6f).toDouble()).toFloat()
-            val beam = SweepGradient(
-                cx, cy,
-                intArrayOf(Color.TRANSPARENT, alpha(p.accent, processing), Color.TRANSPARENT),
-                floatArrayOf(0f, 0.24f, 0.25f),
-            )
-            matrix.setRotate(startDegrees, cx, cy)
-            beam.setLocalMatrix(matrix)
-            strokePaint.shader = beam
+            strokePaint.shader = null
+            strokePaint.color = alpha(p.accent, processing)
             strokePaint.strokeCap = Paint.Cap.ROUND
-            strokePaint.strokeWidth = base * 0.03f
-            canvas.drawArc(oval, startDegrees, 86f, false, strokePaint)
+            strokePaint.strokeWidth = base * 0.12f
+            canvas.drawArc(oval, (spin * 140f) % 360f, 100f, false, strokePaint)
             strokePaint.shader = null
         }
 
@@ -195,7 +188,7 @@ class OrbView(context: Context) : View(context) {
             Mode.ASLEEP -> 0f
             Mode.IDLE -> 0.18f
             Mode.LISTENING -> 0.45f + target * 0.55f
-            Mode.PROCESSING -> 0.55f
+            Mode.PROCESSING -> 0.18f // looks exactly like rest; only the ring is added
         }
         level += (target - level) * min(1f, dt * if (target > level) 18f else 4f)
         energy += (targetEnergy - energy) * min(1f, dt * 3f)

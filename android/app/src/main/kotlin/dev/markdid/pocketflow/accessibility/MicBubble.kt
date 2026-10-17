@@ -24,9 +24,9 @@ import kotlin.math.abs
  * Floating dictation bubble drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to
  * start, tap again to finish; drag to move it along the screen edge.
  *
- * At rest it's the subtle pearl orb with a small mic, a little translucent. While busy it cross-fades to a solid
- * button that reads on any screen: blue with live level bars while listening, a spinning ring while writing. Pearl or
- * graphite, by default following the system dark mode.
+ * At rest it's the subtle pearl orb with a small mic, a little translucent. While listening it cross-fades to a solid
+ * blue button with live level bars that reads on any screen; while writing it is the resting orb with a spinning blue
+ * ring. Pearl or graphite, by default following the system dark mode.
  */
 class MicBubble(private val service: AccessibilityService, private val onTap: () -> Unit) {
     private val windowManager = service.getSystemService(WindowManager::class.java)
@@ -94,20 +94,17 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
             BubbleStyle.auto -> (service.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
         }
-        val busy = state == DictationState.listening || state == DictationState.transcribing
+        // Listening swaps to the solid blue button; writing keeps the resting orb and adds a spinning ring.
+        val busy = state == DictationState.listening
         orb?.apply {
             this.dark = dark
-            mode = OrbView.Mode.IDLE
+            mode = if (state == DictationState.transcribing) OrbView.Mode.PROCESSING else OrbView.Mode.IDLE
             paused = busy
             animate().alpha(if (busy) 0f else 1f).setDuration(180).start()
         }
         button?.apply {
             this.dark = dark
-            mode = when (state) {
-                DictationState.listening -> BubbleView.Mode.LISTENING
-                DictationState.transcribing -> BubbleView.Mode.PROCESSING
-                else -> BubbleView.Mode.IDLE
-            }
+            mode = if (busy) BubbleView.Mode.LISTENING else BubbleView.Mode.IDLE
             paused = !busy
             animate().alpha(if (busy) 1f else 0f).setDuration(180).start()
         }
