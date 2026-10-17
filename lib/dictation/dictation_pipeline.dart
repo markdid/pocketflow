@@ -10,7 +10,6 @@ import 'package:pocketflow/dictation/dictation_style.dart';
 import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/dictation/openai_client.dart';
 import 'package:pocketflow/dictation/vocabulary.dart';
-import 'package:pocketflow/dictation/wav_splitter.dart';
 import 'package:pocketflow/services/logging_service.dart';
 
 final dictationPipelineProvider = Provider<DictationPipeline>((ref) {
@@ -145,31 +144,19 @@ class DictationPipeline {
 
   Future<String> _transcribe(AppSettings settings, File audio) async {
     final client = await _client(settings);
-    List<File>? pieces;
-    try {
-      pieces = await WavSplitter.split(audio, audio.parent);
-      final vocabulary = await _vocabulary.load();
-      final prompt = Vocabulary.whisperPrompt(vocabulary.terms);
-      final texts = <String>[];
-      for (final piece in pieces ?? [audio]) {
-        final text = await client.transcribe(
-          audio: piece,
-          model: settings.transcriptionModel,
-          language: settings.language,
-          prompt: prompt,
-        );
-        if (prompt.isNotEmpty && Vocabulary.isPromptEcho(text, prompt)) {
-          LoggerService.w('Dropped a transcript that echoed the vocabulary prompt: $text');
-        } else if (text.isNotEmpty) {
-          texts.add(text);
-        }
-      }
-      return texts.join(' ');
-    } finally {
-      for (final piece in pieces ?? const <File>[]) {
-        if (piece.existsSync()) await piece.delete();
-      }
+    final vocabulary = await _vocabulary.load();
+    final prompt = Vocabulary.whisperPrompt(vocabulary.terms);
+    final text = await client.transcribe(
+      audio: audio,
+      model: settings.transcriptionModel,
+      language: settings.language,
+      prompt: prompt,
+    );
+    if (prompt.isNotEmpty && Vocabulary.isPromptEcho(text, prompt)) {
+      LoggerService.w('Dropped a transcript that echoed the vocabulary prompt: $text');
+      return '';
     }
+    return text;
   }
 
   Future<DictationResult> _finish(

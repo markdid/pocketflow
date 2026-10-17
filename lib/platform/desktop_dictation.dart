@@ -120,7 +120,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
   Future<void> _start() async {
     _finishWatch();
     _appId = await _channel.invokeMethod<String>('frontmostApp');
-    final path = '${(await getTemporaryDirectory()).path}/pocketflow_${DateTime.now().millisecondsSinceEpoch}.wav';
+    final path = '${(await getTemporaryDirectory()).path}/pocketflow_${DateTime.now().millisecondsSinceEpoch}.m4a';
     final started = await _channel.invokeMethod<bool>('startRecording', {'path': path}) ?? false;
     if (!started) {
       _setState(DictationState.error, 'Couldn’t start the microphone. Allow it in PocketFlow.');

@@ -127,13 +127,12 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
 
   private func startRecording(path: String) -> Bool {
     recorder?.stop()
+    // 32 kbps AAC: about 8x smaller than WAV, so uploads stay quick on slow connections.
     let settings: [String: Any] = [
-      AVFormatIDKey: kAudioFormatLinearPCM,
+      AVFormatIDKey: kAudioFormatMPEG4AAC,
       AVSampleRateKey: 16_000,
       AVNumberOfChannelsKey: 1,
-      AVLinearPCMBitDepthKey: 16,
-      AVLinearPCMIsFloatKey: false,
-      AVLinearPCMIsBigEndianKey: false,
+      AVEncoderBitRateKey: 32_000,
     ]
     guard let recorder = try? AVAudioRecorder(url: URL(fileURLWithPath: path), settings: settings),
       recorder.record()

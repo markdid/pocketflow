@@ -24,10 +24,10 @@ import dev.markdid.pocketflow.MainActivity
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.R
 import dev.markdid.pocketflow.accessibility.PocketFlowAccessibilityService
+import dev.markdid.pocketflow.audio.AacAudioRecorder
 import dev.markdid.pocketflow.audio.AudioCapture
 import dev.markdid.pocketflow.audio.BluetoothMicRouter
 import dev.markdid.pocketflow.audio.MemoRecorder
-import dev.markdid.pocketflow.audio.WavAudioRecorder
 import dev.markdid.pocketflow.input.TextDelivery
 import dev.markdid.pocketflow.walk.HeadsetControls
 import kotlinx.coroutines.CoroutineScope
@@ -149,8 +149,8 @@ class DictationService : Service() {
             } else {
                 MediaRecorder.AudioSource.VOICE_RECOGNITION
             }
-            val capture: AudioCapture = if (memo) MemoRecorder(this@DictationService) else WavAudioRecorder()
-            val file = File(cacheDir, "recording_${System.currentTimeMillis()}.${if (memo) "m4a" else "wav"}")
+            val capture: AudioCapture = if (memo) MemoRecorder(this@DictationService) else AacAudioRecorder()
+            val file = File(cacheDir, "recording_${System.currentTimeMillis()}.m4a")
             if (!capture.start(file, source)) {
                 bluetooth.deactivate()
                 setState(DictationState.error, "Couldn't start the microphone. Is another app using it?")
@@ -170,21 +170,24 @@ class DictationService : Service() {
                     else -> "Listening…"
                 },
             )
-            if (memo) watchForSilence(capture)
+            watchForSilence(capture, memo)
             if (stopRequested) stopAndProcess()
         }
     }
 
-    /** Walk mode: optionally stop once the speaker has gone quiet, and never record forever. */
-    private fun watchForSilence(capture: AudioCapture) {
+    /**
+     * Never record forever: an hour of 32 kbps AAC (~15 MB) stays under the API's 25 MB upload limit. In walk mode,
+     * also stop once the speaker has gone quiet.
+     */
+    private fun watchForSilence(capture: AudioCapture, memo: Boolean) {
         silenceJob?.cancel()
         silenceJob = scope.launch {
-            val stopAfter = settings.walkAutoStopSeconds * 1000L
+            val stopAfter = if (memo) settings.walkAutoStopSeconds * 1000L else 0L
             var heardSpeech = false
             var quietSince = 0L
             while (isActive && recorder === capture) {
                 delay(200)
-                if (capture.durationMillis > MAX_MEMO_MS) break
+                if (capture.durationMillis > MAX_RECORDING_MS) break
                 if (stopAfter <= 0) continue
                 val loud = capture.level() > SPEECH_LEVEL
                 val now = System.currentTimeMillis()
@@ -428,7 +431,7 @@ class DictationService : Service() {
         private const val NOTIFICATION_SAVED = 45
         private const val REQUEST_SHARE = 10
         private const val MIN_AUDIO_MS = 400L
-        private const val MAX_MEMO_MS = 60 * 60 * 1000L
+        private const val MAX_RECORDING_MS = 60 * 60 * 1000L
         private const val SPEECH_LEVEL = 0.08f
 
         /** Loudness of the active recording (0..1), for the orb animations; null when not recording. */
