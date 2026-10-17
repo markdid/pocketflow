@@ -28,6 +28,8 @@ Future<void> runDictationEngine() async {
             audioMillis: args['audioMillis'] as int?,
           );
           return {'text': result.text, 'warning': result.warning, 'historyId': result.entry?.id};
+        } on TranscriptionSavedException catch (e) {
+          return {'error': e.toString(), 'saved': true, 'historyId': e.entry.id};
         } on Exception catch (e, stack) {
           LoggerService.e('Dictation failed', e, stack);
           return {'error': e.toString()};

@@ -85,6 +85,7 @@ class HistoryEntry with HistoryEntryMappable {
     this.audioPath,
     this.audioMillis,
     this.processingMillis,
+    this.error,
   });
 
   final String id;
@@ -95,10 +96,16 @@ class HistoryEntry with HistoryEntryMappable {
   final String text;
   final String? appId;
 
-  /// Kept for memos so a recording can be re-transcribed; dictation audio is deleted after processing.
+  /// Kept for memos so a recording can be re-transcribed, and for any recording whose transcription failed.
+  /// Dictation audio is otherwise deleted after processing.
   final String? audioPath;
   final int? audioMillis;
   final int? processingMillis;
+
+  /// Why transcription failed. Set while the entry is waiting to be retried; [text] is empty until then.
+  final String? error;
+
+  bool get failed => error != null;
 }
 
 /// Something learned from a correction, reported back so the UI can show it and offer undo.

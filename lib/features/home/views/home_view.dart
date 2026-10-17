@@ -55,7 +55,9 @@ class HomeView extends StatelessWidget {
     required this.history,
     required this.onOrbTap,
     required this.onCopy,
+    required this.onRetry,
     required this.onDelete,
+    this.retrying = const {},
     this.level,
     this.phone,
   });
@@ -71,7 +73,13 @@ class HomeView extends StatelessWidget {
   final List<HistoryEntry> history;
   final VoidCallback onOrbTap;
   final ValueChanged<HistoryEntry> onCopy;
+
+  /// Transcribes a failed entry's saved recording again.
+  final ValueChanged<HistoryEntry> onRetry;
   final ValueChanged<HistoryEntry> onDelete;
+
+  /// Ids of entries being retried right now.
+  final Set<String> retrying;
   final ValueListenable<double>? level;
   final PhoneControls? phone;
 
@@ -119,7 +127,13 @@ class HomeView extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final entry = history[index];
-              return _HistoryCard(entry: entry, onCopy: () => onCopy(entry), onDelete: () => onDelete(entry));
+              return _HistoryCard(
+                entry: entry,
+                retrying: retrying.contains(entry.id),
+                onCopy: () => onCopy(entry),
+                onRetry: () => onRetry(entry),
+                onDelete: () => onDelete(entry),
+              );
             },
           ),
         ),
@@ -447,18 +461,27 @@ class _SetupRow extends StatelessWidget {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.entry, required this.onCopy, required this.onDelete});
+  const _HistoryCard({
+    required this.entry,
+    required this.retrying,
+    required this.onCopy,
+    required this.onRetry,
+    required this.onDelete,
+  });
 
   final HistoryEntry entry;
+  final bool retrying;
   final VoidCallback onCopy;
+  final VoidCallback onRetry;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final memo = entry.mode == DictationMode.memo;
     final appId = entry.appId;
+    final error = entry.error;
     return SurfaceCard(
-      onTap: onCopy,
+      onTap: error == null ? onCopy : (retrying ? null : onRetry),
       onLongPress: onDelete,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
@@ -479,12 +502,15 @@ class _HistoryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            entry.text,
-            maxLines: memo ? 8 : 5,
-            overflow: TextOverflow.ellipsis,
-            style: AppThemeData.geist(15.5, height: 1.45),
-          ),
+          if (error != null)
+            _FailedBody(error: error, audioMillis: entry.audioMillis, retrying: retrying, onRetry: onRetry)
+          else
+            Text(
+              entry.text,
+              maxLines: memo ? 8 : 5,
+              overflow: TextOverflow.ellipsis,
+              style: AppThemeData.geist(15.5, height: 1.45),
+            ),
         ],
       ),
     );
@@ -497,6 +523,52 @@ class _HistoryCard extends StatelessWidget {
     if (diff.inDays < 1) return '${diff.inHours}h';
     if (diff.inDays < 7) return '${diff.inDays}d';
     return MaterialLocalizations.of(context).formatShortMonthDay(time);
+  }
+}
+
+/// A recording that couldn't be transcribed yet, kept so nothing said is lost.
+class _FailedBody extends StatelessWidget {
+  const _FailedBody({required this.error, required this.retrying, required this.onRetry, this.audioMillis});
+
+  final String error;
+  final int? audioMillis;
+  final bool retrying;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final millis = audioMillis;
+    final length = millis == null ? '' : ' · ${millis ~/ 60000}:${(millis ~/ 1000 % 60).toString().padLeft(2, '0')}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 16, color: AppColors.danger),
+            const SizedBox(width: 6),
+            Text('Not transcribed yet$length', style: AppThemeData.geist(15, weight: 560)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          error,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: AppThemeData.geist(13, color: AppColors.textMuted, height: 1.35),
+        ),
+        const SizedBox(height: 12),
+        if (retrying)
+          Row(
+            children: [
+              const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(width: 10),
+              Text('Transcribing…', style: AppThemeData.geist(14, color: AppColors.textMuted)),
+            ],
+          )
+        else
+          FilledButton.tonal(onPressed: onRetry, child: const Text('Try again')),
+      ],
+    );
   }
 }
 
@@ -526,6 +598,17 @@ final _previewHistory = [
     appId: 'com.whatsapp',
   ),
   HistoryEntry(
+    id: '3',
+    createdAt: DateTime.now().subtract(const Duration(minutes: 40)),
+    mode: DictationMode.memo,
+    style: DictationStyle.memo,
+    rawText: '',
+    text: '',
+    audioPath: '/memos/recording.m4a',
+    audioMillis: 134000,
+    error: 'Couldn’t reach the API. Check your internet connection.',
+  ),
+  HistoryEntry(
     id: '2',
     createdAt: DateTime.now().subtract(const Duration(hours: 3)),
     mode: DictationMode.memo,
@@ -546,6 +629,7 @@ Widget homeViewPreview() => HomeView(
   history: _previewHistory,
   onOrbTap: () {},
   onCopy: (_) {},
+  onRetry: (_) {},
   onDelete: (_) {},
   phone: PhoneControls(
     armed: true,
@@ -570,5 +654,6 @@ Widget homeViewSetupPreview() => HomeView(
   history: const [],
   onOrbTap: () {},
   onCopy: (_) {},
+  onRetry: (_) {},
   onDelete: (_) {},
 );

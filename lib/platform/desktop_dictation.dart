@@ -157,6 +157,9 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
       _setState(DictationState.idle, result.warning ?? '');
       unawaited(ref.read(historyProvider.notifier).refresh());
       _watchForCorrections(result.text);
+    } on TranscriptionSavedException catch (e) {
+      _setState(DictationState.error, e.toString());
+      unawaited(ref.read(historyProvider.notifier).refresh());
     } on Exception catch (e, stack) {
       LoggerService.e('Dictation failed', e, stack);
       _setState(DictationState.error, e.toString());

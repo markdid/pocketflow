@@ -71,6 +71,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
           setupSteps: _setupSteps(context, apiKey: apiKey, android: android, bridge: bridge, desktop: desktop),
           stats: _stats(entries, learned ?? 0),
           history: entries,
+          retrying: ref.watch(retryingProvider),
           onOrbTap: () {
             HapticFeedback.mediumImpact();
             if (desktop != null) {
@@ -89,6 +90,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
                   onWalkModeChanged: (value) => statusNotifier.setWalkMode(enabled: value),
                 ),
           onCopy: (entry) => _copy(context, entry),
+          onRetry: (entry) => _retry(context, entry),
           onDelete: (entry) => _confirmDelete(context, entry),
         ),
       ),
@@ -99,7 +101,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
   HomeStats _stats(List<HistoryEntry> entries, int learned) {
     var words = 0;
     var spokenMillis = 0;
-    for (final entry in entries) {
+    for (final entry in entries.where((e) => !e.failed)) {
       words += entry.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
       spokenMillis += entry.audioMillis ?? 0;
     }
@@ -164,6 +166,15 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     if (!context.mounted) return;
     unawaited(HapticFeedback.selectionClick());
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+  }
+
+  Future<void> _retry(BuildContext context, HistoryEntry entry) async {
+    try {
+      await ref.read(retryingProvider.notifier).retry(entry.id);
+    } on Exception catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   Future<void> _confirmDelete(BuildContext context, HistoryEntry entry) async {

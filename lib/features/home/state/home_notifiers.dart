@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pocketflow/data/repositories/history_repository.dart';
+import 'package:pocketflow/dictation/dictation_pipeline.dart';
 import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/features/settings/state/settings_notifier.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
@@ -23,6 +24,28 @@ class HistoryNotifier extends AsyncNotifier<List<HistoryEntry>> {
   Future<void> remove(String id) async {
     await ref.read(historyRepositoryProvider).remove(id);
     await refresh();
+  }
+}
+
+final retryingProvider = NotifierProvider<RetryingNotifier, Set<String>>(RetryingNotifier.new);
+
+/// Ids of history entries whose saved recording is being transcribed again.
+class RetryingNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  /// Rethrows the failure; the entry keeps its recording either way.
+  Future<void> retry(String id) async {
+    if (state.contains(id)) return;
+    state = {...state, id};
+    try {
+      await ref.read(dictationPipelineProvider).retry(id);
+    } finally {
+      if (ref.mounted) {
+        state = {...state}..remove(id);
+        await ref.read(historyProvider.notifier).refresh();
+      }
+    }
   }
 }
 

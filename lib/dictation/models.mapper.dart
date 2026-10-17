@@ -706,6 +706,12 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
     _$processingMillis,
     opt: true,
   );
+  static String? _$error(HistoryEntry v) => v.error;
+  static const Field<HistoryEntry, String> _f$error = Field(
+    'error',
+    _$error,
+    opt: true,
+  );
 
   @override
   final MappableFields<HistoryEntry> fields = const {
@@ -719,6 +725,7 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
     #audioPath: _f$audioPath,
     #audioMillis: _f$audioMillis,
     #processingMillis: _f$processingMillis,
+    #error: _f$error,
   };
 
   static HistoryEntry _instantiate(DecodingData data) {
@@ -733,6 +740,7 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
       audioPath: data.dec(_f$audioPath),
       audioMillis: data.dec(_f$audioMillis),
       processingMillis: data.dec(_f$processingMillis),
+      error: data.dec(_f$error),
     );
   }
 
@@ -809,6 +817,7 @@ abstract class HistoryEntryCopyWith<$R, $In extends HistoryEntry, $Out>
     String? audioPath,
     int? audioMillis,
     int? processingMillis,
+    String? error,
   });
   HistoryEntryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -833,6 +842,7 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
     Object? audioPath = $none,
     Object? audioMillis = $none,
     Object? processingMillis = $none,
+    Object? error = $none,
   }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
@@ -845,6 +855,7 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
       if (audioPath != $none) #audioPath: audioPath,
       if (audioMillis != $none) #audioMillis: audioMillis,
       if (processingMillis != $none) #processingMillis: processingMillis,
+      if (error != $none) #error: error,
     }),
   );
   @override
@@ -859,6 +870,7 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
     audioPath: data.get(#audioPath, or: $value.audioPath),
     audioMillis: data.get(#audioMillis, or: $value.audioMillis),
     processingMillis: data.get(#processingMillis, or: $value.processingMillis),
+    error: data.get(#error, or: $value.error),
   );
 
   @override

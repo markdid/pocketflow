@@ -228,8 +228,18 @@ class DictationService : Service() {
             try {
                 val result = engine.process(file.absolutePath, targetApp, memo, durationMillis)
                 val error = result["error"] as? String
+                val saved = result["saved"] == true
                 val text = result["text"] as? String ?: ""
                 when {
+                    error != null && saved -> {
+                        setState(DictationState.error, error)
+                        if (memo) headset?.say("I couldn't transcribe that yet. The recording is saved.")
+                        notifyResult(
+                            NOTIFICATION_SAVED,
+                            if (memo) "Memo saved, not transcribed yet" else "Dictation saved, not transcribed yet",
+                            "$error Open PocketFlow and tap it in Recent to try again.",
+                        )
+                    }
                     error != null -> {
                         setState(DictationState.error, error)
                         if (memo) headset?.say("Sorry, that memo couldn't be transcribed.")
@@ -241,7 +251,7 @@ class DictationService : Service() {
                     memo -> finishMemo(text)
                     else -> finishDictation(text, result["warning"] as? String)
                 }
-                if (text.isNotEmpty()) DictationBus.emit(mapOf("type" to "history"))
+                if (text.isNotEmpty() || saved) DictationBus.emit(mapOf("type" to "history"))
             } catch (t: Throwable) {
                 Log.e(TAG, "processing failed", t)
                 setState(DictationState.error, t.message ?: "Something went wrong.")
@@ -404,6 +414,7 @@ class DictationService : Service() {
         private const val NOTIFICATION_ID = 42
         private const val NOTIFICATION_MEMO = 43
         private const val NOTIFICATION_LEARNED = 44
+        private const val NOTIFICATION_SAVED = 45
         private const val REQUEST_SHARE = 10
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_MEMO_MS = 60 * 60 * 1000L

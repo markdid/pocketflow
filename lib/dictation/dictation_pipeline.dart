@@ -10,6 +10,7 @@ import 'package:pocketflow/dictation/dictation_style.dart';
 import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/dictation/openai_client.dart';
 import 'package:pocketflow/dictation/vocabulary.dart';
+import 'package:pocketflow/dictation/wav_splitter.dart';
 import 'package:pocketflow/services/logging_service.dart';
 
 final dictationPipelineProvider = Provider<DictationPipeline>(
@@ -25,6 +26,17 @@ class MissingApiKeyException implements Exception {
   String toString() => 'Add your Groq API key in PocketFlow settings first.';
 }
 
+/// Transcription failed, but the recording was saved to history so it can be retried.
+class TranscriptionSavedException implements Exception {
+  TranscriptionSavedException(this.cause, this.entry);
+
+  final Object cause;
+  final HistoryEntry entry;
+
+  @override
+  String toString() => '$cause The recording is saved in PocketFlow to try again.';
+}
+
 class DictationResult {
   const DictationResult({required this.text, required this.entry, this.warning});
 
@@ -37,7 +49,8 @@ class DictationResult {
 }
 
 /// Audio file in, finished text out: transcribe with vocabulary hints, fix known mishearings, clean up for the
-/// destination app, and record the result in history.
+/// destination app, and record the result in history. A recording that can't be transcribed (offline, API down, no
+/// key yet) is kept in history instead of being lost.
 class DictationPipeline {
   DictationPipeline({
     required this._settings,
@@ -51,67 +64,132 @@ class DictationPipeline {
   final HistoryRepository _history;
   final OpenAiClient Function(String baseUrl, String apiKey) _clientFactory;
 
+  /// Throws [TranscriptionSavedException] when transcription fails and the recording was kept for [retry].
   Future<DictationResult> process({
     required File audio,
     DictationMode mode = DictationMode.dictation,
     String? appId,
     int? audioMillis,
   }) async {
+    final timer = Stopwatch()..start();
     final started = DateTime.now();
     final settings = await _settings.load();
-    final client = await _client(settings);
+    final entry = HistoryEntry(
+      id: started.microsecondsSinceEpoch.toString(),
+      createdAt: started,
+      mode: mode,
+      style: mode == DictationMode.memo
+          ? DictationStyle.memo
+          : DictationStyle.forApp(appId, overrides: settings.appStyles),
+      rawText: '',
+      text: '',
+      appId: appId,
+      audioMillis: audioMillis,
+    );
+    final String raw;
     try {
+      raw = await _transcribe(settings, audio);
+    } on Exception catch (e) {
+      LoggerService.w('Transcription failed, keeping the recording to retry', e);
+      final saved = entry.copyWith(audioPath: await _keepAudio(audio, started), error: e.toString());
+      await _history.save(saved);
+      throw TranscriptionSavedException(e, saved);
+    }
+    return _finish(settings, entry, raw, audio, timer);
+  }
+
+  /// Transcribes a recording kept after a failed attempt and fills in its history entry. On failure the entry keeps
+  /// the recording and the new error, and the error is rethrown.
+  Future<DictationResult> retry(String id) async {
+    final timer = Stopwatch()..start();
+    final entry = (await _history.load()).where((e) => e.id == id).firstOrNull;
+    final path = entry?.audioPath;
+    if (entry == null || path == null) return const DictationResult(text: '', entry: null);
+    final audio = File(path);
+    final settings = await _settings.load();
+    final String raw;
+    try {
+      raw = await _transcribe(settings, audio);
+    } on Exception catch (e) {
+      await _history.save(entry.copyWith(error: e.toString()));
+      rethrow;
+    }
+    final result = await _finish(settings, entry.copyWith(error: null), raw, audio, timer);
+    // Nothing was said after all.
+    if (result.entry == null) await _history.remove(id);
+    return result;
+  }
+
+  Future<String> _transcribe(AppSettings settings, File audio) async {
+    final client = await _client(settings);
+    List<File>? pieces;
+    try {
+      pieces = await WavSplitter.split(audio, audio.parent);
       final vocabulary = await _vocabulary.load();
       final prompt = Vocabulary.whisperPrompt(vocabulary.terms);
-
-      var raw = await client.transcribe(
-        audio: audio,
-        model: settings.transcriptionModel,
-        language: settings.language,
-        prompt: prompt,
-      );
-      if (prompt.isNotEmpty && Vocabulary.isPromptEcho(raw, prompt)) {
-        LoggerService.w('Dropped a transcript that echoed the vocabulary prompt: $raw');
-        raw = '';
-      }
-      if (raw.isEmpty) return const DictationResult(text: '', entry: null);
-
-      final style = mode == DictationMode.memo
-          ? DictationStyle.memo
-          : DictationStyle.forApp(appId, overrides: settings.appStyles);
-      final corrected = Vocabulary.applyReplacements(raw, vocabulary.rules);
-
-      String? warning;
-      var text = corrected;
-      if (settings.cleanupEnabled) {
-        try {
-          text = await _cleanUp(client, settings, style, corrected, vocabulary.terms, appId);
-        } on Exception catch (e) {
-          LoggerService.w('Cleanup failed, using the raw transcript', e);
-          warning = 'Cleanup failed, inserted the raw transcript.';
-          text = corrected;
+      final texts = <String>[];
+      for (final piece in pieces ?? [audio]) {
+        final text = await client.transcribe(
+          audio: piece,
+          model: settings.transcriptionModel,
+          language: settings.language,
+          prompt: prompt,
+        );
+        if (prompt.isNotEmpty && Vocabulary.isPromptEcho(text, prompt)) {
+          LoggerService.w('Dropped a transcript that echoed the vocabulary prompt: $text');
+        } else if (text.isNotEmpty) {
+          texts.add(text);
         }
       }
-      if (text.isEmpty) return const DictationResult(text: '', entry: null);
-
-      await _vocabulary.recordHits(Vocabulary.termsUsedIn(text, vocabulary.terms).map((t) => t.term));
-      final entry = HistoryEntry(
-        id: started.microsecondsSinceEpoch.toString(),
-        createdAt: started,
-        mode: mode,
-        style: style,
-        rawText: raw,
-        text: text,
-        appId: appId,
-        audioPath: mode == DictationMode.memo ? await _keepMemoAudio(audio, started) : null,
-        audioMillis: audioMillis,
-        processingMillis: DateTime.now().difference(started).inMilliseconds,
-      );
-      await _history.add(entry);
-      return DictationResult(text: text, entry: entry, warning: warning);
+      return texts.join(' ');
     } finally {
       client.close();
+      for (final piece in pieces ?? const <File>[]) {
+        if (piece.existsSync()) await piece.delete();
+      }
     }
+  }
+
+  Future<DictationResult> _finish(
+    AppSettings settings,
+    HistoryEntry entry,
+    String raw,
+    File audio,
+    Stopwatch timer,
+  ) async {
+    if (raw.isEmpty) return const DictationResult(text: '', entry: null);
+    final vocabulary = await _vocabulary.load();
+    final corrected = Vocabulary.applyReplacements(raw, vocabulary.rules);
+
+    String? warning;
+    var text = corrected;
+    if (settings.cleanupEnabled) {
+      final client = await _client(settings);
+      try {
+        text = await _cleanUp(client, settings, entry.style, corrected, vocabulary.terms, entry.appId);
+      } on Exception catch (e) {
+        LoggerService.w('Cleanup failed, using the raw transcript', e);
+        warning = 'Cleanup failed, inserted the raw transcript.';
+        text = corrected;
+      } finally {
+        client.close();
+      }
+    }
+    if (text.isEmpty) return const DictationResult(text: '', entry: null);
+
+    await _vocabulary.recordHits(Vocabulary.termsUsedIn(text, vocabulary.terms).map((t) => t.term));
+    final memo = entry.mode == DictationMode.memo;
+    final kept = entry.audioPath;
+    final finished = entry.copyWith(
+      rawText: raw,
+      text: text,
+      audioPath: memo ? kept ?? await _keepAudio(audio, entry.createdAt) : null,
+      processingMillis: timer.elapsedMilliseconds,
+    );
+    await _history.save(finished);
+    // A retried dictation no longer needs its recording; memos keep theirs for replay.
+    if (!memo && kept != null && File(kept).existsSync()) await File(kept).delete();
+    return DictationResult(text: text, entry: finished, warning: warning);
   }
 
   Future<String> _cleanUp(
@@ -176,10 +254,10 @@ class DictationPipeline {
     return _clientFactory(settings.apiBaseUrl, key);
   }
 
-  Future<String> _keepMemoAudio(File audio, DateTime started) async {
-    final dir = await _history.memoDirectory();
+  Future<String> _keepAudio(File audio, DateTime started) async {
+    final dir = await _history.recordingsDirectory();
     final extension = audio.path.contains('.') ? audio.path.split('.').last : 'wav';
-    final kept = await audio.copy('${dir.path}/memo_${started.millisecondsSinceEpoch}.$extension');
+    final kept = await audio.copy('${dir.path}/recording_${started.millisecondsSinceEpoch}.$extension');
     return kept.path;
   }
 }

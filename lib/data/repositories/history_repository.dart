@@ -20,8 +20,11 @@ class HistoryRepository {
     return [for (final item in json.whereType<Map<String, Object?>>()) HistoryEntryMapper.fromMap(item)];
   }
 
-  Future<void> add(HistoryEntry entry) async {
-    final entries = [entry, ...await load()];
+  /// Adds [entry] at the top, or replaces the entry with the same id in place (after a retry).
+  Future<void> save(HistoryEntry entry) async {
+    final existing = await load();
+    final index = existing.indexWhere((e) => e.id == entry.id);
+    final entries = index < 0 ? [entry, ...existing] : (existing..[index] = entry);
     final kept = entries.take(_limit).toList();
     for (final dropped in entries.skip(_limit)) {
       await _deleteAudio(dropped);
@@ -40,8 +43,8 @@ class HistoryRepository {
     ]);
   }
 
-  /// Where memo recordings are kept so they can be replayed or re-transcribed.
-  Future<Directory> memoDirectory() async {
+  /// Where memo recordings and failed recordings are kept so they can be replayed or transcribed again.
+  Future<Directory> recordingsDirectory() async {
     final dir = Directory('${(await _store.directory).path}/memos');
     await dir.create(recursive: true);
     return dir;
