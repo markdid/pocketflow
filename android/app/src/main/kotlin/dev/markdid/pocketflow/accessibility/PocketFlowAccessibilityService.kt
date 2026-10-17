@@ -1,6 +1,7 @@
 package dev.markdid.pocketflow.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -8,6 +9,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import dev.markdid.pocketflow.HotkeyMode
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.dictation.DictationBus
@@ -96,9 +98,24 @@ class PocketFlowAccessibilityService : AccessibilityService() {
             focus.isEditable &&
             !focus.isPassword &&
             pkg != packageName &&
+            keyboardVisible() &&
             // The PocketFlow keyboard has its own mic.
             dev.markdid.pocketflow.ime.PocketFlowImeService.editorPackage() == null
         if (show) bubble.show() else if (!DictationBus.isBusy) bubble.hide()
+    }
+
+    /**
+     * The bubble follows the keyboard: a field can stay focused after its keyboard is dismissed, and the bubble
+     * should go away with the keyboard. With a hardware keyboard there's no on-screen keyboard to wait for.
+     */
+    private fun keyboardVisible(): Boolean {
+        val config = resources.configuration
+        if (config.keyboard == Configuration.KEYBOARD_QWERTY &&
+            config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+        ) {
+            return true
+        }
+        return runCatching { windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } }.getOrDefault(true)
     }
 
     fun refreshBubbleState() {
