@@ -66,7 +66,7 @@ class AndroidStatusNotifier extends AsyncNotifier<AndroidStatus?> {
 
 typedef DictationActivity = ({DictationState state, bool ready, String message});
 
-/// What dictation is doing right now on this platform, for the orb, the aurora, and the status line.
+/// What dictation is doing right now on this platform, for the orb and the status line.
 final dictationActivityProvider = Provider<DictationActivity>((ref) {
   final hasKey = (ref.watch(settingsProvider).value?.apiKey ?? '').isNotEmpty;
   final android = ref.watch(androidStatusProvider).value;

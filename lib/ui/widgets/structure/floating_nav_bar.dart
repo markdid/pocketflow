@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
 
-/// Floating frosted tab bar with a sliding highlight behind the selected tab.
-class GlassNavBar extends StatelessWidget {
-  const GlassNavBar({super.key, required this.selectedIndex, required this.onSelected, required this.items});
+/// Floating tab bar; the selected tab is inverted (paper on ink).
+class FloatingNavBar extends StatelessWidget {
+  const FloatingNavBar({super.key, required this.selectedIndex, required this.onSelected, required this.items});
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -21,12 +21,12 @@ class GlassNavBar extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(99),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.ink.withValues(alpha: 0.55),
+                color: AppColors.surface.withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: AppColors.glassBorder),
+                border: Border.all(color: AppColors.hairline),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(6),
@@ -74,24 +74,19 @@ class _NavItem extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: selected ? 18 : 16, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(99),
-            gradient: selected
-                ? LinearGradient(
-                    colors: [AppColors.violet.withValues(alpha: 0.9), AppColors.magenta.withValues(alpha: 0.75)],
-                  )
-                : null,
-            boxShadow: selected ? [BoxShadow(color: AppColors.magenta.withValues(alpha: 0.35), blurRadius: 18)] : null,
+            color: selected ? AppColors.text : Colors.transparent,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 20, color: selected ? Colors.white : AppColors.textMuted),
+              Icon(icon, size: 20, color: selected ? AppColors.ink : AppColors.textMuted),
               AnimatedSize(
                 duration: const Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
                 child: selected
                     ? Padding(
                         padding: const EdgeInsets.only(left: 8),
-                        child: Text(label, style: AppThemeData.geist(14, weight: 600, color: Colors.white)),
+                        child: Text(label, style: AppThemeData.geist(14, weight: 600, color: AppColors.ink)),
                       )
                     : const SizedBox.shrink(),
               ),
@@ -104,9 +99,9 @@ class _NavItem extends StatelessWidget {
 }
 
 @AppPreview(group: 'Structure', name: 'Nav bar')
-Widget glassNavBarPreview() => Align(
+Widget floatingNavBarPreview() => Align(
   alignment: Alignment.bottomCenter,
-  child: GlassNavBar(
+  child: FloatingNavBar(
     selectedIndex: 0,
     onSelected: (_) {},
     items: const [

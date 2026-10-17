@@ -17,7 +17,7 @@ class MainFlutterWindow: NSWindow {
     titleVisibility = .hidden
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = true
-    backgroundColor = NSColor(red: 0.024, green: 0.024, blue: 0.039, alpha: 1)
+    backgroundColor = NSColor(red: 0.039, green: 0.039, blue: 0.043, alpha: 1)
     minSize = NSSize(width: 420, height: 640)
     setContentSize(NSSize(width: 460, height: 820))
     center()
@@ -327,12 +327,7 @@ final class HUDWaveView: NSView {
   private var history = [CGFloat](repeating: 0, count: 22)
   private var timer: Timer?
   private var phase: CGFloat = 0
-  private static let colors: [NSColor] = [
-    NSColor(red: 0.48, green: 0.38, blue: 1, alpha: 1),
-    NSColor(red: 1, green: 0.31, blue: 0.85, alpha: 1),
-    NSColor(red: 1, green: 0.70, blue: 0.28, alpha: 1),
-    NSColor(red: 0.21, green: 0.88, blue: 1, alpha: 1),
-  ]
+  private static let signal = NSColor(red: 1, green: 0.353, blue: 0.122, alpha: 1)
 
   func start() {
     guard timer == nil else { return }
@@ -354,21 +349,23 @@ final class HUDWaveView: NSView {
   }
 
   override func draw(_ dirtyRect: NSRect) {
+    // Live dot: the one place the signal color appears on desktop.
+    let dot = NSRect(x: 16, y: bounds.midY - 3.5, width: 7, height: 7)
+    (processing ? NSColor.white.withAlphaComponent(0.35) : Self.signal).setFill()
+    NSBezierPath(ovalIn: dot).fill()
+
     let count = history.count
-    let barWidth: CGFloat = 3.5
-    let gap = (bounds.width - 40 - barWidth * CGFloat(count)) / CGFloat(count - 1)
-    let gradient = NSGradient(colors: Self.colors)
+    let barWidth: CGFloat = 3
+    let left: CGFloat = 34
+    let right: CGFloat = 18
+    let gap = (bounds.width - left - right - barWidth * CGFloat(count)) / CGFloat(count - 1)
     for (index, value) in history.enumerated() {
-      // Processing: a soft shimmer travels along the bars instead of the voice.
+      // Writing: a soft shimmer travels along the bars instead of the voice.
       let shimmer = processing ? 0.5 + 0.5 * sin(phase * 2 - CGFloat(index) * 0.45) : 1
-      let height = max(4, min(bounds.height - 16, 4 + value * (bounds.height - 14))) * (processing ? shimmer : 1)
-      let x = 20 + CGFloat(index) * (barWidth + gap)
-      let rect = NSRect(x: x, y: (bounds.height - height) / 2, width: barWidth, height: max(4, height))
-      let path = NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2)
-      NSGraphicsContext.saveGraphicsState()
-      path.addClip()
-      gradient?.draw(in: NSRect(x: 20, y: 0, width: bounds.width - 40, height: bounds.height), angle: 0)
-      NSGraphicsContext.restoreGraphicsState()
+      let height = max(3, (4 + value * (bounds.height - 18)) * shimmer)
+      let rect = NSRect(x: left + CGFloat(index) * (barWidth + gap), y: (bounds.height - height) / 2, width: barWidth, height: height)
+      NSColor.white.withAlphaComponent(processing ? 0.45 : 0.9).setFill()
+      NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
     }
   }
 }

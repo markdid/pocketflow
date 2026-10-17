@@ -1,30 +1,20 @@
 import 'package:flutter/material.dart';
 
-/// PocketFlow's palette: near-black ink, an aurora of violet → magenta → amber → cyan for anything voice, and quiet
-/// lavender greys for text.
+/// PocketFlow's palette: ink and paper-white, with one signal color that appears only while the mic is live.
 class AppColors {
   AppColors._();
 
-  static const ink = Color(0xFF06060A);
-  static const inkRaised = Color(0xFF0E0D15);
-  static const glass = Color(0x0FFFFFFF);
-  static const glassBorder = Color(0x1AFFFFFF);
+  static const ink = Color(0xFF0A0A0B);
+  static const surface = Color(0xFF141416);
+  static const surfaceHigh = Color(0xFF1E1E21);
+  static const hairline = Color(0x17FFFFFF);
 
-  static const text = Color(0xFFF4F2FF);
-  static const textMuted = Color(0xFFA9A4C4);
-  static const textFaint = Color(0xFF6C6886);
+  static const text = Color(0xFFF2F1EE);
+  static const textMuted = Color(0xFF8E8D93);
+  static const textFaint = Color(0xFF5B5A60);
 
-  static const violet = Color(0xFF7B61FF);
-  static const magenta = Color(0xFFFF4FD8);
-  static const amber = Color(0xFFFFB347);
-  static const cyan = Color(0xFF35E0FF);
-  static const mint = Color(0xFF5CF2B0);
-  static const coral = Color(0xFFFF6B6B);
-
-  /// The voice spectrum, in order, closing the loop for sweep gradients.
-  static const aurora = [violet, magenta, amber, cyan, violet];
-
-  static const auroraLinear = LinearGradient(colors: [violet, magenta, amber]);
+  /// The live-mic color. Use it for listening and attention states only.
+  static const signal = Color(0xFFFF5A1F);
 }
 
 class AppThemeData {
@@ -61,25 +51,26 @@ class AppThemeData {
       FontWeight.values[((weight / 100).round() - 1).clamp(0, FontWeight.values.length - 1)];
 
   static ThemeData _build() {
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.violet, brightness: Brightness.dark).copyWith(
-      primary: AppColors.violet,
-      secondary: AppColors.magenta,
-      tertiary: AppColors.cyan,
-      surface: AppColors.inkRaised,
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.textMuted, brightness: Brightness.dark).copyWith(
+      primary: AppColors.text,
+      secondary: AppColors.textMuted,
+      tertiary: AppColors.signal,
+      surface: AppColors.surface,
       onSurface: AppColors.text,
+      onPrimary: AppColors.ink,
       onSurfaceVariant: AppColors.textMuted,
-      error: AppColors.coral,
-      outline: AppColors.glassBorder,
+      error: AppColors.signal,
+      outline: AppColors.hairline,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
-      scaffoldBackgroundColor: Colors.transparent,
-      canvasColor: AppColors.inkRaised,
+      scaffoldBackgroundColor: AppColors.ink,
+      canvasColor: AppColors.surface,
       fontFamily: 'Geist',
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: InkRipple.splashFactory,
       textTheme: TextTheme(
         displayLarge: serif(56),
         displayMedium: serif(44),
@@ -105,42 +96,42 @@ class AppThemeData {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? Colors.white : AppColors.textFaint,
+          (states) => states.contains(WidgetState.selected) ? AppColors.ink : AppColors.textFaint,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.violet : const Color(0x14FFFFFF),
+          (states) => states.contains(WidgetState.selected) ? AppColors.text : AppColors.surfaceHigh,
         ),
         trackOutlineColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.violet : AppColors.glassBorder,
+          (states) => states.contains(WidgetState.selected) ? AppColors.text : AppColors.hairline,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0x0AFFFFFF),
+        fillColor: AppColors.surfaceHigh,
         labelStyle: geist(14, color: AppColors.textMuted),
-        floatingLabelStyle: geist(13, color: AppColors.violet),
+        floatingLabelStyle: geist(13, color: AppColors.textMuted),
         helperStyle: geist(12, color: AppColors.textFaint, height: 1.4),
         hintStyle: geist(14, color: AppColors.textFaint),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.glassBorder),
+          borderSide: const BorderSide(color: AppColors.hairline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.glassBorder),
+          borderSide: const BorderSide(color: AppColors.hairline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.violet, width: 1.4),
+          borderSide: const BorderSide(color: AppColors.textMuted),
         ),
       ),
       dropdownMenuTheme: const DropdownMenuThemeData(
-        menuStyle: MenuStyle(backgroundColor: WidgetStatePropertyAll(AppColors.inkRaised)),
+        menuStyle: MenuStyle(backgroundColor: WidgetStatePropertyAll(AppColors.surface)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.violet,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.text,
+          foregroundColor: AppColors.ink,
           textStyle: geist(15, weight: 600),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
           shape: const StadiumBorder(),
@@ -151,35 +142,35 @@ class AppThemeData {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.inkRaised,
+        backgroundColor: AppColors.surface,
         contentTextStyle: geist(14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.glassBorder),
+          side: const BorderSide(color: AppColors.hairline),
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.inkRaised,
+        backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         dragHandleColor: AppColors.textFaint,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.inkRaised,
+        backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: serif(26),
         contentTextStyle: geist(14, color: AppColors.textMuted, height: 1.45),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
-          side: const BorderSide(color: AppColors.glassBorder),
+          side: const BorderSide(color: AppColors.hairline),
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.violet,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.text,
+        foregroundColor: AppColors.ink,
         shape: StadiumBorder(),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.glassBorder, space: 1),
+      dividerTheme: const DividerThemeData(color: AppColors.hairline, space: 1),
     );
   }
 }

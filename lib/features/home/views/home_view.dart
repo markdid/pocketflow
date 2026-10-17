@@ -6,8 +6,8 @@ import 'package:pocketflow/platform/android_bridge.dart';
 import 'package:pocketflow/ui/formatting/app_names.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
-import 'package:pocketflow/ui/widgets/effects/glass.dart';
 import 'package:pocketflow/ui/widgets/effects/voice_orb.dart';
+import 'package:pocketflow/ui/widgets/surface.dart';
 
 class SetupStep {
   const SetupStep({required this.title, required this.subtitle, required this.done, this.onTap});
@@ -155,7 +155,7 @@ class _ReadyPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = on ? AppColors.mint : AppColors.textFaint;
+    final color = on ? AppColors.text : AppColors.textFaint;
     return Semantics(
       toggled: on,
       label: 'Ready to dictate',
@@ -165,9 +165,9 @@ class _ReadyPill extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: on ? 0.12 : 0.06),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(99),
-            border: Border.all(color: color.withValues(alpha: on ? 0.35 : 0.2)),
+            border: Border.all(color: AppColors.hairline),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -176,11 +176,7 @@ class _ReadyPill extends StatelessWidget {
                 duration: const Duration(milliseconds: 300),
                 width: 7,
                 height: 7,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  boxShadow: on ? [BoxShadow(color: color, blurRadius: 8, spreadRadius: 1)] : null,
-                ),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
               Text(on ? 'Ready' : 'Off', style: AppThemeData.geist(13, weight: 560, color: color)),
@@ -246,7 +242,7 @@ class _OrbSection extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppThemeData.geist(
               14,
-              color: state == DictationState.error ? AppColors.coral : AppColors.textMuted,
+              color: state == DictationState.error ? AppColors.signal : AppColors.textMuted,
               height: 1.45,
             ),
           ),
@@ -293,13 +289,12 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    return SurfaceCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      radius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AuroraText(value, style: AppThemeData.serif(34, height: 1)),
+          Text(value, style: AppThemeData.serif(34, height: 1)),
           const SizedBox(height: 4),
           Text(label, style: AppThemeData.geist(12, color: AppColors.textFaint)),
         ],
@@ -315,21 +310,22 @@ class _WalkModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      glow: phone.walkMode,
+    return SurfaceCard(
       onTap: () => phone.onWalkModeChanged(!phone.walkMode),
       padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
       child: Row(
         children: [
-          DecoratedBox(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: phone.walkMode ? const LinearGradient(colors: [AppColors.violet, AppColors.magenta]) : null,
-              color: phone.walkMode ? null : const Color(0x14FFFFFF),
+              color: phone.walkMode ? AppColors.text : AppColors.surfaceHigh,
             ),
-            child: const Padding(
-              padding: EdgeInsets.all(11),
-              child: Icon(Icons.headphones_rounded, size: 22, color: Colors.white),
+            child: Icon(
+              Icons.headphones_rounded,
+              size: 22,
+              color: phone.walkMode ? AppColors.ink : AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 14),
@@ -363,8 +359,7 @@ class _SetupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final done = steps.where((s) => s.done).length;
-    return GlassCard(
-      glow: true,
+    return SurfaceCard(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,10 +376,10 @@ class _SetupCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(99),
             child: Stack(
               children: [
-                Container(height: 4, color: const Color(0x14FFFFFF)),
+                Container(height: 3, color: AppColors.surfaceHigh),
                 FractionallySizedBox(
                   widthFactor: steps.isEmpty ? 0 : done / steps.length,
-                  child: Container(height: 4, decoration: const BoxDecoration(gradient: AppColors.auroraLinear)),
+                  child: Container(height: 3, color: AppColors.text),
                 ),
               ],
             ),
@@ -415,7 +410,7 @@ class _SetupRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 1),
               child: step.done
-                  ? const Icon(Icons.check_circle_rounded, size: 20, color: AppColors.mint)
+                  ? const Icon(Icons.check_circle_rounded, size: 20, color: AppColors.textMuted)
                   : const Icon(Icons.radio_button_unchecked_rounded, size: 20, color: AppColors.textFaint),
             ),
             const SizedBox(width: 12),
@@ -461,23 +456,22 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final memo = entry.mode == DictationMode.memo;
     final appId = entry.appId;
-    return GlassCard(
+    return SurfaceCard(
       onTap: onCopy,
       onLongPress: onDelete,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      radius: 22,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               if (memo)
-                const GlassChip(label: 'Memo', icon: Icons.graphic_eq_rounded, color: AppColors.magenta)
+                const Tag(label: 'Memo', icon: Icons.graphic_eq_rounded)
               else if (appId != null)
-                GlassChip(label: appDisplayName(appId), color: AppColors.cyan),
+                Tag(label: appDisplayName(appId)),
               if (!memo && entry.style != DictationStyle.standard) ...[
                 const SizedBox(width: 6),
-                GlassChip(label: entry.style.label),
+                Tag(label: entry.style.label),
               ],
               const Spacer(),
               Text(_relativeTime(context, entry.createdAt), style: AppThemeData.geist(12, color: AppColors.textFaint)),

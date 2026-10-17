@@ -105,13 +105,13 @@ class PocketFlowImeService : InputMethodService() {
             gravity = Gravity.CENTER
             textSize = 26f
             typeface = serif
-            setTextColor(0xFFF4F2FF.toInt())
+            setTextColor(0xFFF2F1EE.toInt())
         }
         val hint = TextView(this).apply {
             gravity = Gravity.CENTER
             textSize = 12.5f
             typeface = sans
-            setTextColor(0xFF6C6886.toInt())
+            setTextColor(0xFF5B5A60.toInt())
             setPadding(0, dp(2), 0, 0)
         }
         val orb = OrbView(this).apply {
@@ -161,10 +161,7 @@ class PocketFlowImeService : InputMethodService() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(18))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xFF15112A.toInt(), 0xFF06060A.toInt()),
-            )
+            setBackgroundColor(0xFF0A0A0B.toInt())
             addView(status)
             addView(hint)
             addView(row)
@@ -173,10 +170,10 @@ class PocketFlowImeService : InputMethodService() {
 
     private fun keyButton(icon: Int, description: String, onClick: () -> Unit) = ImageButton(this).apply {
         setImageResource(icon)
-        setColorFilter(0xFFA9A4C4.toInt())
+        setColorFilter(0xFF8E8D93.toInt())
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(0x14FFFFFF)
+            setColor(0xFF1E1E21.toInt())
         }
         contentDescription = description
         setOnClickListener {

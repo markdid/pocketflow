@@ -3,12 +3,9 @@ import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
-import 'package:pocketflow/ui/widgets/effects/glass.dart';
+import 'package:pocketflow/ui/widgets/surface.dart';
 
-const transcriptionModels = {
-  'whisper-large-v3-turbo': 'Turbo · fast',
-  'whisper-large-v3': 'Large v3 · accurate',
-};
+const transcriptionModels = {'whisper-large-v3-turbo': 'Turbo · fast', 'whisper-large-v3': 'Large v3 · accurate'};
 
 const cleanupModels = {
   'openai/gpt-oss-20b': 'GPT-OSS 20B',
@@ -46,7 +43,7 @@ class SettingsView extends StatelessWidget {
       children: [
         Text('Settings', style: AppThemeData.serif(40)),
         const _Section('Voice to text'),
-        GlassCard(
+        SurfaceCard(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
           child: Column(
             children: [
@@ -85,7 +82,7 @@ class SettingsView extends StatelessWidget {
           ),
         ),
         const _Section('Cleanup'),
-        GlassCard(
+        SurfaceCard(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Column(
             children: [
@@ -121,7 +118,7 @@ class SettingsView extends StatelessWidget {
         ),
         if (device != null && onDeviceChanged != null) ...[
           const _Section('This phone'),
-          GlassCard(
+          SurfaceCard(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Column(
               children: [
@@ -147,7 +144,7 @@ class SettingsView extends StatelessWidget {
             ),
           ),
           const _Section('Keyboards & remote desktops'),
-          GlassCard(
+          SurfaceCard(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Column(
               children: [
@@ -168,7 +165,7 @@ class SettingsView extends StatelessWidget {
           ),
         ],
         const _Section('Advanced'),
-        GlassCard(
+        SurfaceCard(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
           child: _CommitTextField(
             label: 'API base URL',
@@ -269,9 +266,10 @@ class _PickerRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            Expanded(child: Text(title, style: AppThemeData.geist(15.5, weight: 560))),
+            Expanded(flex: 3, child: Text(title, style: AppThemeData.geist(15.5, weight: 560))),
             const SizedBox(width: 12),
             Flexible(
+              flex: 2,
               child: Text(
                 all[value] ?? value,
                 overflow: TextOverflow.ellipsis,
@@ -310,9 +308,9 @@ class _PickerSheet extends StatelessWidget {
             ListTile(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               selected: entry.key == value,
-              selectedTileColor: AppColors.violet.withValues(alpha: 0.14),
+              selectedTileColor: AppColors.surfaceHigh,
               title: Text(entry.value, style: AppThemeData.geist(15.5, weight: entry.key == value ? 600 : 450)),
-              trailing: entry.key == value ? const Icon(Icons.check_rounded, color: AppColors.violet) : null,
+              trailing: entry.key == value ? const Icon(Icons.check_rounded, color: AppColors.text) : null,
               onTap: () => Navigator.pop(context, entry.key),
             ),
         ],

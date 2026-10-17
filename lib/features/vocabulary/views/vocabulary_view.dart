@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
-import 'package:pocketflow/ui/widgets/effects/glass.dart';
+import 'package:pocketflow/ui/widgets/surface.dart';
 
 class VocabularyView extends StatelessWidget {
   const VocabularyView({
@@ -60,7 +60,7 @@ class VocabularyView extends StatelessWidget {
         if (rules.isEmpty)
           const _Empty('Like “shin aid” → Sinead. Added when you add a word with how it’s usually misheard.')
         else
-          GlassCard(
+          SurfaceCard(
             padding: EdgeInsets.zero,
             child: Column(
               children: [
@@ -83,23 +83,15 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Add a word',
-      child: GestureDetector(
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(colors: [AppColors.violet, AppColors.magenta]),
-            boxShadow: [BoxShadow(color: AppColors.magenta.withValues(alpha: 0.4), blurRadius: 18)],
-          ),
-          child: const Padding(
-            padding: EdgeInsets.all(12),
-            child: Icon(Icons.add_rounded, color: Colors.white),
-          ),
-        ),
+    return IconButton.filled(
+      tooltip: 'Add a word',
+      onPressed: onTap,
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.text,
+        foregroundColor: AppColors.ink,
+        minimumSize: const Size.square(48),
       ),
+      icon: const Icon(Icons.add_rounded),
     );
   }
 }
@@ -136,47 +128,34 @@ class _TermChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(99),
-        gradient: learned
-            ? LinearGradient(
-                colors: [AppColors.violet.withValues(alpha: 0.7), AppColors.magenta.withValues(alpha: 0.7)],
-              )
-            : null,
-        border: learned ? null : Border.all(color: AppColors.glassBorder),
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.hairline),
       ),
       child: Padding(
-        padding: EdgeInsets.all(learned ? 1 : 0),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(99),
-            color: learned ? AppColors.inkRaised : AppColors.glass,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (learned) ...[
-                  const Icon(Icons.auto_awesome, size: 14, color: AppColors.magenta),
-                  const SizedBox(width: 6),
-                ],
-                Text(term.term, style: AppThemeData.geist(14.5, weight: 520)),
-                const SizedBox(width: 2),
-                InkResponse(
-                  onTap: onRemove,
-                  radius: 16,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 15,
-                      color: AppColors.textFaint,
-                      semanticLabel: 'Remove ${term.term}',
-                    ),
-                  ),
+        padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (learned) ...[
+              const Icon(Icons.auto_awesome, size: 13, color: AppColors.textFaint, semanticLabel: 'Learned'),
+              const SizedBox(width: 6),
+            ],
+            Text(term.term, style: AppThemeData.geist(14.5, weight: 520)),
+            const SizedBox(width: 2),
+            InkResponse(
+              onTap: onRemove,
+              radius: 16,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 15,
+                  color: AppColors.textFaint,
+                  semanticLabel: 'Remove ${term.term}',
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -209,10 +188,10 @@ class _RuleRow extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 10),
             child: Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.textMuted),
           ),
-          Flexible(child: AuroraText(rule.to, style: AppThemeData.serif(24))),
+          Flexible(child: Text(rule.to, style: AppThemeData.serif(24))),
           const Spacer(),
           if (rule.source == TermSource.learned)
-            const Icon(Icons.auto_awesome, size: 14, color: AppColors.magenta, semanticLabel: 'Learned'),
+            const Icon(Icons.auto_awesome, size: 13, color: AppColors.textFaint, semanticLabel: 'Learned'),
           IconButton(
             tooltip: 'Remove',
             icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textFaint),

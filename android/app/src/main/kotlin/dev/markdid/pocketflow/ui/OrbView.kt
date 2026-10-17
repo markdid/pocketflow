@@ -1,13 +1,12 @@
 package dev.markdid.pocketflow.ui
 
 import android.content.Context
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -22,7 +21,8 @@ import kotlin.math.sin
 
 /**
  * The PocketFlow voice orb, drawn natively for the floating bubble and the keyboard. Mirrors the Flutter `VoiceOrb`:
- * drifting pools of aurora light inside a liquid shape that ripples with the voice, and a comet beam while writing.
+ * a matte charcoal shape that ripples with the voice, with a rim that lights up in the signal color only while the
+ * mic is live, and a thin white beam while writing.
  */
 class OrbView(context: Context) : View(context) {
     enum class Mode { ASLEEP, IDLE, LISTENING, PROCESSING }
@@ -30,8 +30,9 @@ class OrbView(context: Context) : View(context) {
     var mode = Mode.IDLE
     var levelProvider: () -> Float = { 0f }
 
-    /** Draw a small mic glyph when idle, so a bare orb still reads as "tap to talk". */
+    /** Draw a small mic glyph at rest, so a bare orb still reads as "tap to talk". */
     var showMicWhenIdle = true
+    var squeezed = false
 
     private val startedAt = SystemClock.uptimeMillis()
     private var lastFrame = 0f
@@ -41,37 +42,28 @@ class OrbView(context: Context) : View(context) {
     private var processing = 0f
     private var asleep = 0f
     private var press = 0f
-    var squeezed = false
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val screen = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+    private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val path = Path()
     private val matrix = Matrix()
     private val oval = RectF()
     private val mic = ContextCompat.getDrawable(context, R.drawable.ic_stat_mic)?.mutate()
 
     // Unit-radius gradients, positioned per frame with a local matrix instead of reallocating.
-    private val pools = listOf(
-        Pool(MAGENTA, 0.55f, 0.62f, 0.78f, 0f),
-        Pool(CYAN, -0.42f, 0.66f, 0.70f, 1.9f),
-        Pool(AMBER, 0.33f, 0.58f, 0.55f, 3.6f),
-        Pool(VIOLET, -0.25f, 0.35f, 0.95f, 5.0f),
+    private val body = RadialGradient(
+        -0.45f, -0.55f, 1.25f,
+        intArrayOf(0xFF4A4A50.toInt(), 0xFF1A1A1D.toInt(), 0xFF0C0C0E.toInt()),
+        floatArrayOf(0f, 0.55f, 1f),
+        Shader.TileMode.CLAMP,
     )
-    private val white = radial(Color.WHITE)
-    private val halo = RadialGradient(
+    private val glint = RadialGradient(0f, 0f, 1f, alpha(Color.WHITE, 0.10f), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+    private val glow = RadialGradient(
         0f, 0f, 1f,
-        intArrayOf(alpha(MAGENTA, 0.5f), alpha(VIOLET, 0.25f), alpha(VIOLET, 0f)),
-        floatArrayOf(0.3f, 0.6f, 1f),
+        intArrayOf(alpha(SIGNAL, 0.14f), alpha(SIGNAL, 0.14f), Color.TRANSPARENT),
+        floatArrayOf(0f, 0.7f, 1f),
         Shader.TileMode.CLAMP,
     )
-    private val body = RadialGradient(0.2f, 0.3f, 1.2f, 0xFF2B1870.toInt(), 0xFF0D0820.toInt(), Shader.TileMode.CLAMP)
-    private val falloff = RadialGradient(
-        0f, 0f, 1.15f,
-        intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT, alpha(Color.BLACK, 0.45f)),
-        floatArrayOf(0f, 0.55f, 0.85f),
-        Shader.TileMode.CLAMP,
-    )
-    private val rim = SweepGradient(0f, 0f, intArrayOf(VIOLET, MAGENTA, AMBER, CYAN, VIOLET), null)
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
@@ -85,93 +77,72 @@ class OrbView(context: Context) : View(context) {
 
         val cx = width / 2f
         val cy = height / 2f
-        val base = min(width, height) * 0.30f * (1 - press * 0.06f) * (1 + 0.02f * sin(now * 1.6f))
-        val wake = 1 - asleep * 0.7f
+        val base = min(width, height) * 0.30f * (1 - press * 0.05f) * (1 + 0.015f * sin(now * 1.6f))
+        val live = ((energy - 0.18f) / 0.82f).coerceIn(0f, 1f) * (1 - processing)
+        val dim = 1 - asleep * 0.6f
 
-        // Halo.
-        val haloRadius = base * (1.6f + energy * 0.45f + level * 0.3f)
-        paint.alpha = (255 * wake * (0.45f + energy * 0.55f)).toInt().coerceIn(0, 255)
-        draw(canvas, halo, cx, cy, haloRadius)
-        paint.alpha = 255
+        // Faint signal glow behind the orb while listening.
+        if (live > 0.01f) {
+            paint.alpha = (255 * live).toInt()
+            fill(canvas, glow, cx, cy, base * (1.3f + level * 0.25f))
+            paint.alpha = 255
+        }
 
-        val ripple = 0.025f + energy * 0.035f + level * 0.13f
+        val ripple = 0.018f + energy * 0.025f + level * 0.11f
         blob(cx, cy, base, now, ripple)
 
-        val save = canvas.saveLayer(cx - base * 1.3f, cy - base * 1.3f, cx + base * 1.3f, cy + base * 1.3f, null)
-        canvas.clipPath(path)
-        draw(canvas, body, cx, cy, base)
-
-        paint.xfermode = screen
-        val drift = 0.75f + energy * 0.5f
-        for (pool in pools) {
-            val a = now * pool.speed * drift + pool.phase + spin * 0.5f
-            val x = cx + cos(a) * base * pool.orbit * (0.8f + level * 0.5f)
-            val y = cy + sin(a * 1.3f) * base * pool.orbit * (0.8f + level * 0.5f)
-            paint.alpha = (255 * 0.85f * wake).toInt()
-            draw(canvas, pool.shader, x, y, base * pool.size * (0.9f + level * 0.35f))
-        }
-        paint.alpha = (255 * wake * (0.04f + level * 0.3f)).toInt().coerceIn(0, 255)
-        draw(canvas, white, cx, cy, base * (0.35f + level * 0.45f))
-        paint.alpha = 255
-        paint.xfermode = null
-
-        draw(canvas, falloff, cx, cy, base)
-
-        // Inner rim of aurora light.
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = base * 0.07f
-        paint.xfermode = screen
-        paint.alpha = (255 * 0.7f * wake).toInt()
-        matrix.setRotate(Math.toDegrees((spin + now * 0.2f).toDouble()).toFloat())
+        // Matte charcoal body, lit from the top left.
+        matrix.setScale(base, base)
         matrix.postTranslate(cx, cy)
-        rim.setLocalMatrix(matrix)
-        paint.shader = rim
+        body.setLocalMatrix(matrix)
+        paint.shader = body
+        paint.alpha = (255 * (0.55f + 0.45f * dim)).toInt()
         canvas.drawPath(path, paint)
-        paint.style = Paint.Style.FILL
-        paint.xfermode = null
         paint.alpha = 255
 
-        // Specular glint.
-        paint.alpha = (255 * 0.42f * wake).toInt()
-        matrix.setScale(base * 0.35f, base * 0.21f)
-        matrix.postTranslate(cx - base * 0.38f, cy - base * 0.45f)
-        white.setLocalMatrix(matrix)
-        paint.shader = white
-        oval.set(cx - base * 0.73f, cy - base * 0.66f, cx - base * 0.03f, cy - base * 0.24f)
+        // Specular glint, clipped to the shape.
+        val save = canvas.save()
+        canvas.clipPath(path)
+        paint.alpha = (255 * dim).toInt()
+        matrix.setScale(base * 0.4f, base * 0.225f)
+        matrix.postTranslate(cx - base * 0.4f, cy - base * 0.48f)
+        glint.setLocalMatrix(matrix)
+        paint.shader = glint
+        oval.set(cx - base * 0.8f, cy - base * 0.705f, cx, cy - base * 0.255f)
         canvas.drawOval(oval, paint)
         paint.alpha = 255
-
-        if (asleep > 0.01f) {
-            paint.shader = null
-            paint.color = alpha(INK, 0.5f * asleep)
-            canvas.drawCircle(cx, cy, base * 1.3f, paint)
-        }
-        canvas.restoreToCount(save)
         paint.shader = null
+        canvas.restoreToCount(save)
+
+        // Rim: a faint white edge at rest, the signal color while the mic is live.
+        rimPaint.color = blend(alpha(Color.WHITE, 0.10f * dim), SIGNAL, live)
+        rimPaint.strokeWidth = base * (0.035f + level * 0.025f)
+        rimPaint.maskFilter = BLUR
+        canvas.drawPath(path, rimPaint)
 
         if (showMicWhenIdle && mic != null && (mode == Mode.IDLE || mode == Mode.ASLEEP)) {
-            val s = (base * 0.62f).toInt()
+            val s = (base * 0.6f).toInt()
             mic.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
-            mic.alpha = (255 * 0.85f).toInt()
+            mic.alpha = (255 * 0.7f * dim).toInt()
             mic.draw(canvas)
         }
 
         if (processing > 0.01f) {
-            val r = base * 1.3f
+            val r = base * 1.28f
             oval.set(cx - r, cy - r, cx + r, cy + r)
-            val start = spin * 1.6f
-            val comet = SweepGradient(
+            val startDegrees = Math.toDegrees((spin * 1.6f).toDouble()).toFloat()
+            val beam = SweepGradient(
                 cx, cy,
-                intArrayOf(alpha(CYAN, 0f), alpha(CYAN, 0.85f * processing), alpha(Color.WHITE, processing), Color.TRANSPARENT),
-                floatArrayOf(0f, 0.22f, 0.25f, 0.26f),
+                intArrayOf(Color.TRANSPARENT, alpha(Color.WHITE, 0.9f * processing), Color.TRANSPARENT),
+                floatArrayOf(0f, 0.24f, 0.25f),
             )
-            matrix.setRotate(Math.toDegrees(start.toDouble()).toFloat(), cx, cy)
-            comet.setLocalMatrix(matrix)
-            paint.shader = comet
+            matrix.setRotate(startDegrees, cx, cy)
+            beam.setLocalMatrix(matrix)
+            paint.shader = beam
             paint.style = Paint.Style.STROKE
             paint.strokeCap = Paint.Cap.ROUND
-            paint.strokeWidth = base * 0.04f
-            canvas.drawArc(oval, Math.toDegrees(start.toDouble()).toFloat(), 86f, false, paint)
+            paint.strokeWidth = base * 0.022f
+            canvas.drawArc(oval, startDegrees, 86f, false, paint)
             paint.style = Paint.Style.FILL
             paint.shader = null
         }
@@ -214,29 +185,31 @@ class OrbView(context: Context) : View(context) {
         path.close()
     }
 
-    private fun draw(canvas: Canvas, shader: Shader, x: Float, y: Float, radius: Float) {
+    private fun fill(canvas: Canvas, shader: Shader, x: Float, y: Float, radius: Float) {
         matrix.setScale(radius, radius)
         matrix.postTranslate(x, y)
         shader.setLocalMatrix(matrix)
         paint.shader = shader
-        canvas.drawCircle(x, y, radius * 1.3f, paint)
+        canvas.drawCircle(x, y, radius, paint)
         paint.shader = null
     }
 
-    private class Pool(color: Int, val speed: Float, val orbit: Float, val size: Float, val phase: Float) {
-        val shader = radial(color)
-    }
-
     companion object {
-        const val INK = 0xFF06060A.toInt()
-        const val VIOLET = 0xFF7B61FF.toInt()
-        const val MAGENTA = 0xFFFF4FD8.toInt()
-        const val AMBER = 0xFFFFB347.toInt()
-        const val CYAN = 0xFF35E0FF.toInt()
+        const val SIGNAL = 0xFFFF5A1F.toInt()
+        private val BLUR = BlurMaskFilter(1.5f, BlurMaskFilter.Blur.NORMAL)
 
-        fun alpha(color: Int, a: Float) = Color.argb((a.coerceIn(0f, 1f) * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+        fun alpha(color: Int, a: Float) =
+            Color.argb((a.coerceIn(0f, 1f) * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
 
-        private fun radial(color: Int) =
-            RadialGradient(0f, 0f, 1f, color, alpha(color, 0f), Shader.TileMode.CLAMP)
+        private fun blend(from: Int, to: Int, t: Float): Int {
+            val u = t.coerceIn(0f, 1f)
+            fun ch(a: Int, b: Int) = (a + (b - a) * u).toInt()
+            return Color.argb(
+                ch(Color.alpha(from), Color.alpha(to)),
+                ch(Color.red(from), Color.red(to)),
+                ch(Color.green(from), Color.green(to)),
+                ch(Color.blue(from), Color.blue(to)),
+            )
+        }
     }
 }

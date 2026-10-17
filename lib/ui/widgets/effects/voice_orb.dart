@@ -16,11 +16,11 @@ enum OrbMode {
   /// Mic open: the surface ripples with the voice level.
   listening,
 
-  /// Transcribing and cleaning up: the colors swirl and a beam circles the orb.
+  /// Transcribing and cleaning up: a thin beam circles the orb.
   processing,
 }
 
-/// A liquid aurora orb that reacts to the voice. Tap it to dictate.
+/// A matte liquid orb that ripples with the voice and lights up in the signal color while listening. Tap to dictate.
 class VoiceOrb extends StatefulWidget {
   const VoiceOrb({super.key, required this.mode, this.level, this.size = 220, this.onTap, this.semanticLabel});
 
@@ -116,135 +116,85 @@ class _OrbPainter extends CustomPainter {
 
   final _OrbFrame f;
 
-  /// Pools of light drifting inside the orb: color, orbit speed, orbit size, pool size, phase.
-  static const _pools = [
-    (AppColors.magenta, 0.55, 0.62, 0.78, 0.0),
-    (AppColors.cyan, -0.42, 0.66, 0.70, 1.9),
-    (AppColors.amber, 0.33, 0.58, 0.55, 3.6),
-    (AppColors.violet, -0.25, 0.35, 0.95, 5.0),
-  ];
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final t = f.time;
-    final base = size.shortestSide * 0.30 * (1 - f.press * 0.06) * (1 + 0.02 * sin(t * 1.6));
-    final wake = 1 - f.asleep * 0.7;
+    final base = size.shortestSide * 0.30 * (1 - f.press * 0.05) * (1 + 0.015 * sin(t * 1.6));
+    // How "live" the orb is: 0 at rest, up to 1 on loud speech. Only this brings in the signal color.
+    final live = (f.energy - 0.18).clamp(0.0, 1.0) / 0.82 * (1 - f.processing);
+    final dim = 1 - f.asleep * 0.6;
 
-    // Halo: a wide bloom that swells with the voice.
-    final haloRadius = base * (1.6 + f.energy * 0.45 + f.level * 0.3);
-    canvas.drawCircle(
-      center,
-      haloRadius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            AppColors.magenta.withValues(alpha: wake * (0.22 + f.energy * 0.28)),
-            AppColors.violet.withValues(alpha: wake * (0.12 + f.energy * 0.16)),
-            AppColors.violet.withValues(alpha: 0),
-          ],
-          stops: const [0.3, 0.6, 1],
-        ).createShader(Rect.fromCircle(center: center, radius: haloRadius)),
-    );
+    // Signal glow behind the orb, only while listening.
+    if (live > 0.01) {
+      final glowRadius = base * (1.3 + f.level * 0.25);
+      canvas.drawCircle(
+        center,
+        glowRadius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              AppColors.signal.withValues(alpha: 0.14 * live),
+              AppColors.signal.withValues(alpha: 0),
+            ],
+            stops: const [0.7, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: glowRadius)),
+      );
+    }
 
-    final ripple = 0.025 + f.energy * 0.035 + f.level * 0.13;
+    final ripple = 0.018 + f.energy * 0.025 + f.level * 0.11;
     final shape = _blob(center, base, t, ripple);
     final bounds = Rect.fromCircle(center: center, radius: base * 1.3);
 
     canvas.save();
     canvas.clipPath(shape);
 
-    // Deep body.
+    // Matte charcoal, lit from the top left.
     canvas.drawRect(
       bounds,
       Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(0.2, 0.3),
-          colors: [Color(0xFF2B1870), Color(0xFF0D0820)],
-        ).createShader(bounds),
-    );
-
-    // Light pools, screened together so they bloom where they meet.
-    final drift = 0.75 + f.energy * 0.5;
-    for (final (color, speed, orbit, poolSize, phase) in _pools) {
-      final a = t * speed * drift + phase + f.spin * 0.5;
-      final position = center + Offset(cos(a), sin(a * 1.3)) * base * orbit * (0.8 + f.level * 0.5);
-      final radius = base * poolSize * (0.9 + f.level * 0.35);
-      canvas.drawCircle(
-        position,
-        radius,
-        Paint()
-          ..blendMode = BlendMode.screen
-          ..shader = RadialGradient(
-            colors: [
-              color.withValues(alpha: 0.85 * wake),
-              color.withValues(alpha: 0),
-            ],
-          ).createShader(Rect.fromCircle(center: position, radius: radius)),
-      );
-    }
-
-    // A white-hot core that flares on loud syllables.
-    final core = base * (0.35 + f.level * 0.45);
-    canvas.drawCircle(
-      center,
-      core,
-      Paint()
-        ..blendMode = BlendMode.screen
         ..shader = RadialGradient(
+          center: const Alignment(-0.45, -0.55),
+          radius: 1.25,
           colors: [
-            Colors.white.withValues(alpha: wake * (0.04 + f.level * 0.3)),
-            Colors.white.withValues(alpha: 0),
+            Color.lerp(AppColors.surface, const Color(0xFF4A4A50), dim)!,
+            const Color(0xFF1A1A1D),
+            const Color(0xFF0C0C0E),
           ],
-        ).createShader(Rect.fromCircle(center: center, radius: core)),
+          stops: const [0, 0.55, 1],
+        ).createShader(Rect.fromCircle(center: center, radius: base)),
     );
 
-    // Volume: dark falloff toward the edge, then a thin inner rim of light.
-    canvas.drawRect(
-      bounds,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.45)],
-          stops: const [0.55, 0.85],
-        ).createShader(Rect.fromCircle(center: center, radius: base * 1.15)),
-    );
+    // Rim light: faint white at rest, the signal color when the mic is live.
+    final rimColor = Color.lerp(Colors.white.withValues(alpha: 0.10 * dim), AppColors.signal, live)!;
     canvas.drawPath(
       shape,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = base * 0.08
-        ..blendMode = BlendMode.screen
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, base * 0.05)
-        ..shader = SweepGradient(
-          colors: [for (final c in AppColors.aurora) c.withValues(alpha: 0.7 * wake)],
-          transform: GradientRotation(f.spin + t * 0.2),
-        ).createShader(bounds),
+        ..strokeWidth = base * (0.035 + f.level * 0.025)
+        ..color = rimColor
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, base * 0.012),
     );
 
-    // Specular highlight.
-    final glint = center + Offset(-base * 0.38, -base * 0.45);
+    // Soft specular highlight.
+    final glint = center + Offset(-base * 0.4, -base * 0.48);
+    final glintRect = Rect.fromCenter(center: glint, width: base * 0.8, height: base * 0.45);
     canvas.drawOval(
-      Rect.fromCenter(center: glint, width: base * 0.7, height: base * 0.42),
+      glintRect,
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.42 * wake),
+            Colors.white.withValues(alpha: 0.10 * dim),
             Colors.white.withValues(alpha: 0),
           ],
-        ).createShader(Rect.fromCenter(center: glint, width: base * 0.7, height: base * 0.42)),
+        ).createShader(glintRect),
     );
-
-    if (f.asleep > 0.01) {
-      canvas.drawRect(bounds, Paint()..color = AppColors.ink.withValues(alpha: 0.5 * f.asleep));
-    }
     canvas.restore();
 
-    // Processing: a comet beam circling the orb.
+    // Writing: a thin white beam circling the orb.
     if (f.processing > 0.01) {
-      final ringRadius = base * 1.3;
-      final ring = Rect.fromCircle(center: center, radius: ringRadius);
+      final ring = Rect.fromCircle(center: center, radius: base * 1.28);
       final start = f.spin * 1.6;
-      // The gradient runs a quarter turn from the arc's tail to its bright head.
       canvas.drawArc(
         ring,
         start,
@@ -253,15 +203,13 @@ class _OrbPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = base * 0.035
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5)
+          ..strokeWidth = base * 0.022
           ..shader = SweepGradient(
             colors: [
-              AppColors.cyan.withValues(alpha: 0),
-              AppColors.cyan.withValues(alpha: 0.85 * f.processing),
-              Colors.white.withValues(alpha: f.processing),
+              Colors.white.withValues(alpha: 0),
+              Colors.white.withValues(alpha: 0.9 * f.processing),
             ],
-            stops: const [0, 0.22, 0.25],
+            stops: const [0, 0.24],
             transform: GradientRotation(start),
           ).createShader(ring),
       );
