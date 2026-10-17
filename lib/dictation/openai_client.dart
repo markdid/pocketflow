@@ -1,49 +1,79 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
-  ApiException(this.statusCode, this.body);
+  ApiException(this.statusCode, this.body, {this.retryAfter});
 
   final int statusCode;
   final String body;
 
+  /// From the `retry-after` header, when the API sent one.
+  final Duration? retryAfter;
+
   bool get isRateLimited => statusCode == 429;
   bool get isAuthError => statusCode == 401 || statusCode == 403;
+  bool get isServerError => statusCode >= 500;
 
   @override
   String toString() {
     if (isAuthError) return 'The API key was rejected ($statusCode). Check it in Settings.';
     if (isRateLimited) return 'Rate limited by the API. Wait a moment and try again.';
+    if (statusCode == 413) return 'The recording is too large for the API to accept.';
+    if (isServerError) return 'The API is having trouble right now ($statusCode).';
     return 'API error $statusCode: $body';
   }
 }
 
+/// The request never got an answer: no connection, DNS failure, dropped socket, or a timeout.
+class NetworkException implements Exception {
+  NetworkException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => cause is TimeoutException
+      ? 'The API took too long to answer. Check your connection.'
+      : 'Couldn’t reach the API. Check your internet connection.';
+}
+
 /// Minimal client for OpenAI-compatible transcription and chat endpoints (Groq, OpenAI, local servers).
 class OpenAiClient {
-  OpenAiClient({required this.baseUrl, required this.apiKey, http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  OpenAiClient({
+    required this.baseUrl,
+    required this.apiKey,
+    http.Client? httpClient,
+    this.retryDelays = const [Duration(seconds: 1), Duration(seconds: 3)],
+  }) : _http = httpClient ?? http.Client();
 
   final String baseUrl;
   final String apiKey;
   final http.Client _http;
 
+  /// Waits between transcription attempts after a dropped connection, rate limit, or server error.
+  final List<Duration> retryDelays;
+
   Uri _uri(String path) => Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/$path');
 
-  Future<String> transcribe({required File audio, required String model, String language = '', String? prompt}) async {
-    final request = http.MultipartRequest('POST', _uri('audio/transcriptions'))
-      ..headers['Authorization'] = 'Bearer $apiKey'
-      ..fields['model'] = model
-      ..fields['response_format'] = 'json'
-      ..fields['temperature'] = '0'
-      ..files.add(await http.MultipartFile.fromPath('file', audio.path));
-    if (language.isNotEmpty) request.fields['language'] = language;
-    if (prompt != null && prompt.isNotEmpty) request.fields['prompt'] = prompt;
+  Future<String> transcribe({required File audio, required String model, String language = '', String? prompt}) {
+    // Uploads on a slow mobile connection need longer than the transcription itself: allow about 10 s per MB.
+    final timeout = Duration(seconds: 60 + audio.lengthSync() ~/ 100000);
+    return _withRetry(() async {
+      final request = http.MultipartRequest('POST', _uri('audio/transcriptions'))
+        ..headers['Authorization'] = 'Bearer $apiKey'
+        ..fields['model'] = model
+        ..fields['response_format'] = 'json'
+        ..fields['temperature'] = '0'
+        ..files.add(await http.MultipartFile.fromPath('file', audio.path));
+      if (language.isNotEmpty) request.fields['language'] = language;
+      if (prompt != null && prompt.isNotEmpty) request.fields['prompt'] = prompt;
 
-    final response = await http.Response.fromStream(await _http.send(request).timeout(const Duration(seconds: 120)));
-    final json = _decode(response);
-    return (json['text'] as String? ?? '').trim();
+      final response = await _send(() async => http.Response.fromStream(await _http.send(request)), timeout);
+      final json = _decode(response);
+      return (json['text'] as String? ?? '').trim();
+    });
   }
 
   Future<String> chat({
@@ -64,13 +94,14 @@ class OpenAiClient {
       // Reasoning models (gpt-oss, qwen3) otherwise spend seconds thinking about a one-line cleanup.
       if (_isReasoningModel(model)) ...{'reasoning_effort': 'low', 'include_reasoning': false},
     };
-    final response = await _http
-        .post(
-          _uri('chat/completions'),
-          headers: {'Authorization': 'Bearer $apiKey', 'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
+    final response = await _send(
+      () => _http.post(
+        _uri('chat/completions'),
+        headers: {'Authorization': 'Bearer $apiKey', 'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ),
+      timeout,
+    );
     final json = _decode(response);
     final choices = json['choices'] as List<Object?>? ?? const [];
     if (choices.isEmpty) return '';
@@ -80,9 +111,51 @@ class OpenAiClient {
 
   static bool _isReasoningModel(String model) => model.contains('gpt-oss') || model.contains('qwen3');
 
+  Future<http.Response> _send(Future<http.Response> Function() request, Duration timeout) async {
+    try {
+      return await request().timeout(timeout);
+    } on TimeoutException catch (e) {
+      throw NetworkException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(e);
+    } on http.ClientException catch (e) {
+      throw NetworkException(e);
+    }
+  }
+
+  /// Retries failures that are likely to pass: connection errors, rate limits with a short wait, and server errors.
+  /// Timeouts and other API errors fail straight away so nobody waits minutes for an answer.
+  Future<T> _withRetry<T>(Future<T> Function() attempt) async {
+    for (var i = 0; ; i++) {
+      try {
+        return await attempt();
+      } on Exception catch (e) {
+        final wait = i < retryDelays.length ? _retryWait(e, retryDelays[i]) : null;
+        if (wait == null) rethrow;
+        await Future<void>.delayed(wait);
+      }
+    }
+  }
+
+  static Duration? _retryWait(Exception error, Duration fallback) {
+    if (error is NetworkException) return error.cause is TimeoutException ? null : fallback;
+    if (error is! ApiException) return null;
+    if (error.isServerError) return fallback;
+    if (!error.isRateLimited) return null;
+    final retryAfter = error.retryAfter ?? fallback;
+    return retryAfter <= const Duration(seconds: 10) ? retryAfter : null;
+  }
+
   Map<String, Object?> _decode(http.Response response) {
     final text = utf8.decode(response.bodyBytes);
-    if (response.statusCode < 200 || response.statusCode >= 300) throw ApiException(response.statusCode, text);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final seconds = double.tryParse(response.headers['retry-after'] ?? '');
+      throw ApiException(
+        response.statusCode,
+        text,
+        retryAfter: seconds == null ? null : Duration(milliseconds: (seconds * 1000).round()),
+      );
+    }
     return jsonDecode(text) as Map<String, Object?>;
   }
 
