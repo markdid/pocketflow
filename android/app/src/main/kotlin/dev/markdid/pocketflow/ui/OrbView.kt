@@ -29,7 +29,7 @@ class OrbView(context: Context) : View(context) {
     var mode = Mode.IDLE
     var levelProvider: () -> Float = { 0f }
 
-    /** Draw a small mic glyph at rest, so a bare orb still reads as "tap to talk". */
+    /** Draw the mic glyph (and the listening bars), so a bare orb still reads as "tap to talk". */
     var showMicWhenIdle = true
     var squeezed = false
 
@@ -55,6 +55,7 @@ class OrbView(context: Context) : View(context) {
     private val matrix = Matrix()
     private val oval = RectF()
     private val mic = ContextCompat.getDrawable(context, R.drawable.ic_stat_mic)?.mutate()
+    private val bars = FloatArray(5)
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
@@ -125,10 +126,14 @@ class OrbView(context: Context) : View(context) {
         strokePaint.strokeWidth = base * 0.035f
         canvas.drawPath(path, strokePaint)
 
-        if (showMicWhenIdle && mic != null && (mode == Mode.IDLE || mode == Mode.ASLEEP)) {
+        // Centre mark: the mic at rest and while writing, live bars in the accent while listening. The orb itself is
+        // subtle, so this is what keeps it readable against a screen of the same color.
+        if (showMicWhenIdle && mode == Mode.LISTENING) {
+            drawBars(canvas, cx, cy, base, dt, now, p.accent)
+        } else if (showMicWhenIdle && mic != null) {
             val s = (base * 0.6f).toInt()
             mic.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
-            mic.setTint(p.glyph)
+            mic.setTint(if (mode == Mode.PROCESSING) p.accent else p.glyph)
             mic.draw(canvas)
         }
 
@@ -151,6 +156,25 @@ class OrbView(context: Context) : View(context) {
         }
 
         if (isShown) postInvalidateOnAnimation()
+    }
+
+    private fun drawBars(canvas: Canvas, cx: Float, cy: Float, base: Float, dt: Float, now: Float, color: Int) {
+        val barWidth = base * 0.11f
+        val gap = base * 0.09f
+        val maxHeight = base * 0.8f
+        val left = cx - (bars.size * barWidth + (bars.size - 1) * gap) / 2
+        paint.shader = null
+        paint.color = color
+        for (i in bars.indices) {
+            // Each bar wobbles on its own so the group moves like a voice, not a single meter.
+            val shape = 0.55f + 0.45f * sin(now * 9f + i * 1.3f)
+            val target = (0.2f + level * 1.2f * shape).coerceIn(0.2f, 1f)
+            bars[i] += (target - bars[i]) * min(1f, dt * if (target > bars[i]) 20f else 6f)
+            val h = maxHeight * bars[i]
+            val x = left + i * (barWidth + gap)
+            oval.set(x, cy - h / 2, x + barWidth, cy + h / 2)
+            canvas.drawRoundRect(oval, barWidth / 2, barWidth / 2, paint)
+        }
     }
 
     override fun onAttachedToWindow() {
