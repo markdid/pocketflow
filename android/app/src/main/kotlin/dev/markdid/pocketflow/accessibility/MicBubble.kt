@@ -85,7 +85,7 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
     }
 
     /** Slightly see-through at rest so it doesn't cover what's beneath; fully solid while it's working. */
-    private fun restingAlpha() = if (state == DictationState.listening || state == DictationState.transcribing) 1f else 0.82f
+    private fun restingAlpha() = if (state == DictationState.listening || state == DictationState.transcribing) 1f else 0.9f
 
     @SuppressLint("ClickableViewAccessibility")
     private fun attachTouch(orb: OrbView) {

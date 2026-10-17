@@ -119,13 +119,11 @@ class OrbView(context: Context) : View(context) {
         }
         canvas.restoreToCount(save)
 
-        // Hairline edge (graphite only), so the dark orb holds its shape on dark screens.
-        if (p.edge != Color.TRANSPARENT) {
-            strokePaint.shader = null
-            strokePaint.color = p.edge
-            strokePaint.strokeWidth = base * 0.02f
-            canvas.drawPath(path, strokePaint)
-        }
+        // Hairline edge, so the orb holds its shape against screens of its own color.
+        strokePaint.shader = null
+        strokePaint.color = p.edge
+        strokePaint.strokeWidth = base * 0.035f
+        canvas.drawPath(path, strokePaint)
 
         if (showMicWhenIdle && mic != null && (mode == Mode.IDLE || mode == Mode.ASLEEP)) {
             val s = (base * 0.6f).toInt()
@@ -213,10 +211,11 @@ class OrbView(context: Context) : View(context) {
                 Shader.TileMode.CLAMP,
             ),
             accent = 0xFF0A6CDB.toInt(),
-            shadow = 0x4A1E283C,
+            shadow = 0x701E283C,
             innerShade = 0x40788296,
             glyph = 0x8C0F1115.toInt(),
-            edge = Color.TRANSPARENT,
+            // A defined edge so the pearl doesn't vanish against white screens.
+            edge = 0x2E0F1115,
             background = 0xFFF5F6F8.toInt(),
             haloInner = 0.10f,
             haloOuter = 0.05f,

@@ -342,14 +342,23 @@ class PocketFlowAccessibilityService : AccessibilityService() {
             return focus.performAction(AccessibilityNodeInfo.ACTION_PASTE)
         }
 
-        /** The field's text, ignoring hint text that some apps report as content. */
+        /**
+         * The field's text, ignoring placeholder text that some apps report as content. WhatsApp's empty compose box
+         * reports "Message" as its text without flagging it as a hint, which would otherwise be kept and prefixed.
+         */
         private fun realEditableText(node: AccessibilityNodeInfo): String {
             val raw = node.text?.toString().orEmpty()
             if (raw.isBlank()) return ""
             if (node.isShowingHintText) return ""
             val hint = node.hintText?.toString().orEmpty()
             if (hint.isNotBlank() && raw.equals(hint, ignoreCase = true)) return ""
+            if (raw.trim().lowercase() in placeholders) return ""
             return raw
         }
+
+        private val placeholders = setOf(
+            "message", "type a message", "type message", "write a message", "send a message",
+            "text message", "start messaging", "say something", "compose",
+        )
     }
 }
