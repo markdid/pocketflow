@@ -12,6 +12,16 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    // Let the aurora run edge to edge under a transparent title bar.
+    titlebarAppearsTransparent = true
+    titleVisibility = .hidden
+    styleMask.insert(.fullSizeContentView)
+    isMovableByWindowBackground = true
+    backgroundColor = NSColor(red: 0.024, green: 0.024, blue: 0.039, alpha: 1)
+    minSize = NSSize(width: 420, height: 640)
+    setContentSize(NSSize(width: 460, height: 820))
+    center()
+
     RegisterGeneratedPlugins(registry: flutterViewController)
     bridge = DesktopBridge(messenger: flutterViewController.engine.binaryMessenger, window: self)
 
@@ -32,6 +42,7 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
   private var hotkeyHeld = false
   private var statusItem: NSStatusItem?
   private var levelTimer: Timer?
+  private let hud = DictationHUD()
 
   init(messenger: FlutterBinaryMessenger, window: NSWindow) {
     channel = FlutterMethodChannel(name: "pocketflow/desktop", binaryMessenger: messenger)
@@ -133,7 +144,9 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
       guard let recorder = self?.recorder else { return }
       recorder.updateMeters()
       let amplitude = pow(10, Double(recorder.averagePower(forChannel: 0)) / 20)
-      self?.sink?(["type": "level", "value": min(1, amplitude * 4)])
+      let level = min(1, amplitude * 4)
+      self?.hud.level = CGFloat(level)
+      self?.sink?(["type": "level", "value": level])
     }
     NSSound(named: "Tink")?.play()
     return true
@@ -207,6 +220,7 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
   }
 
   private func setStatus(_ state: String) {
+    hud.show(state: state)
     let symbol: String
     switch state {
     case "listening": symbol = "mic.fill"
@@ -220,5 +234,141 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
   @objc private func showWindow() {
     NSApp.activate(ignoringOtherApps: true)
     window?.makeKeyAndOrderFront(nil)
+  }
+}
+
+/// Floating pill at the bottom of the screen while dictating: a live aurora waveform while listening, a shimmer
+/// while writing. Never takes focus or clicks, so the app you're typing into stays active.
+final class DictationHUD {
+  private var panel: NSPanel?
+  private let wave = HUDWaveView(frame: NSRect(x: 0, y: 0, width: 172, height: 46))
+  private var hideWork: DispatchWorkItem?
+
+  var level: CGFloat {
+    get { wave.level }
+    set { wave.level = newValue }
+  }
+
+  func show(state: String) {
+    hideWork?.cancel()
+    switch state {
+    case "listening", "transcribing":
+      wave.processing = state == "transcribing"
+      present()
+    default:
+      let work = DispatchWorkItem { [weak self] in self?.dismiss() }
+      hideWork = work
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+  }
+
+  private func present() {
+    let panel = self.panel ?? makePanel()
+    self.panel = panel
+    guard let screen = NSScreen.main else { return }
+    let size = panel.frame.size
+    let origin = NSPoint(x: screen.visibleFrame.midX - size.width / 2, y: screen.visibleFrame.minY + 28)
+    panel.setFrameOrigin(origin)
+    if !panel.isVisible {
+      panel.alphaValue = 0
+      panel.orderFrontRegardless()
+      wave.start()
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.18
+        panel.animator().alphaValue = 1
+      }
+    }
+  }
+
+  private func dismiss() {
+    guard let panel = panel, panel.isVisible else { return }
+    NSAnimationContext.runAnimationGroup({ context in
+      context.duration = 0.25
+      panel.animator().alphaValue = 0
+    }, completionHandler: { [weak self] in
+      panel.orderOut(nil)
+      self?.wave.stop()
+    })
+  }
+
+  private func makePanel() -> NSPanel {
+    let panel = NSPanel(
+      contentRect: wave.frame,
+      styleMask: [.borderless, .nonactivatingPanel],
+      backing: .buffered,
+      defer: false
+    )
+    panel.isFloatingPanel = true
+    panel.level = .statusBar
+    panel.backgroundColor = .clear
+    panel.isOpaque = false
+    panel.hasShadow = true
+    panel.ignoresMouseEvents = true
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+
+    let blur = NSVisualEffectView(frame: wave.frame)
+    blur.material = .hudWindow
+    blur.blendingMode = .behindWindow
+    blur.state = .active
+    blur.wantsLayer = true
+    blur.layer?.cornerRadius = wave.frame.height / 2
+    blur.layer?.masksToBounds = true
+    blur.layer?.borderWidth = 1
+    blur.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+    blur.addSubview(wave)
+    panel.contentView = blur
+    return panel
+  }
+}
+
+final class HUDWaveView: NSView {
+  var level: CGFloat = 0
+  var processing = false
+  private var history = [CGFloat](repeating: 0, count: 22)
+  private var timer: Timer?
+  private var phase: CGFloat = 0
+  private static let colors: [NSColor] = [
+    NSColor(red: 0.48, green: 0.38, blue: 1, alpha: 1),
+    NSColor(red: 1, green: 0.31, blue: 0.85, alpha: 1),
+    NSColor(red: 1, green: 0.70, blue: 0.28, alpha: 1),
+    NSColor(red: 0.21, green: 0.88, blue: 1, alpha: 1),
+  ]
+
+  func start() {
+    guard timer == nil else { return }
+    timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.tick() }
+  }
+
+  func stop() {
+    timer?.invalidate()
+    timer = nil
+    history = history.map { _ in 0 }
+  }
+
+  private func tick() {
+    phase += 0.12
+    let next = processing ? 0.25 + 0.2 * sin(phase * 1.5) : level
+    history.removeFirst()
+    history.append(next)
+    needsDisplay = true
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let count = history.count
+    let barWidth: CGFloat = 3.5
+    let gap = (bounds.width - 40 - barWidth * CGFloat(count)) / CGFloat(count - 1)
+    let gradient = NSGradient(colors: Self.colors)
+    for (index, value) in history.enumerated() {
+      // Processing: a soft shimmer travels along the bars instead of the voice.
+      let shimmer = processing ? 0.5 + 0.5 * sin(phase * 2 - CGFloat(index) * 0.45) : 1
+      let height = max(4, min(bounds.height - 16, 4 + value * (bounds.height - 14))) * (processing ? shimmer : 1)
+      let x = 20 + CGFloat(index) * (barWidth + gap)
+      let rect = NSRect(x: x, y: (bounds.height - height) / 2, width: barWidth, height: max(4, height))
+      let path = NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2)
+      NSGraphicsContext.saveGraphicsState()
+      path.addClip()
+      gradient?.draw(in: NSRect(x: 20, y: 0, width: bounds.width - 40, height: bounds.height), angle: 0)
+      NSGraphicsContext.restoreGraphicsState()
+    }
   }
 }
