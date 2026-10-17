@@ -27,6 +27,13 @@ class BubbleView(context: Context) : View(context) {
     var dark = false
     var squeezed = false
 
+    /** Stop animating while faded out (the bubble shows only one of its two looks at a time). */
+    var paused = false
+        set(value) {
+            field = value
+            if (!value) postInvalidateOnAnimation()
+        }
+
     private val startedAt = SystemClock.uptimeMillis()
     private var lastFrame = 0f
     private var press = 0f
@@ -96,8 +103,7 @@ class BubbleView(context: Context) : View(context) {
             canvas.drawArc(oval, (now * 360f) % 360f, 100f, false, stroke)
         }
 
-        // Faded out (the other half of the bubble is showing): stop animating until made visible again.
-        if (isShown && alpha > 0f) postInvalidateOnAnimation()
+        if (isShown && !paused) postInvalidateOnAnimation()
     }
 
     /** Five white bars that follow the voice, centred in the blue disc. */

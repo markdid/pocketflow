@@ -33,6 +33,13 @@ class OrbView(context: Context) : View(context) {
     var showMicWhenIdle = true
     var squeezed = false
 
+    /** Stop animating while faded out (the bubble shows only one of its two looks at a time). */
+    var paused = false
+        set(value) {
+            field = value
+            if (!value) postInvalidateOnAnimation()
+        }
+
     var dark = false
         set(value) {
             field = value
@@ -155,8 +162,7 @@ class OrbView(context: Context) : View(context) {
             strokePaint.shader = null
         }
 
-        // Faded out (the other half of the bubble is showing): stop animating until made visible again.
-        if (isShown && alpha > 0f) postInvalidateOnAnimation()
+        if (isShown && !paused) postInvalidateOnAnimation()
     }
 
     private fun drawBars(canvas: Canvas, cx: Float, cy: Float, base: Float, dt: Float, now: Float, color: Int) {

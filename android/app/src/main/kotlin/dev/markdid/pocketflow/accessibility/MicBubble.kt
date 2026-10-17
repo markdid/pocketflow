@@ -98,8 +98,8 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
         orb?.apply {
             this.dark = dark
             mode = OrbView.Mode.IDLE
+            paused = busy
             animate().alpha(if (busy) 0f else 1f).setDuration(180).start()
-            invalidate()
         }
         button?.apply {
             this.dark = dark
@@ -108,8 +108,8 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
                 DictationState.transcribing -> BubbleView.Mode.PROCESSING
                 else -> BubbleView.Mode.IDLE
             }
+            paused = !busy
             animate().alpha(if (busy) 1f else 0f).setDuration(180).start()
-            invalidate()
         }
         container.animate().alpha(restingAlpha()).setDuration(200).start()
     }
