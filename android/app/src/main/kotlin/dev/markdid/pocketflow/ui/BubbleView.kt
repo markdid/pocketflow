@@ -9,8 +9,6 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.os.SystemClock
 import android.view.View
-import androidx.core.content.ContextCompat
-import dev.markdid.pocketflow.R
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -19,9 +17,6 @@ import kotlin.math.sin
  * any app. (At rest and while writing the bubble shows the pearl [OrbView].)
  */
 class BubbleView(context: Context) : View(context) {
-    enum class Mode { IDLE, LISTENING }
-
-    var mode = Mode.IDLE
     var levelProvider: () -> Float = { 0f }
     var dark = false
     var squeezed = false
@@ -41,7 +36,6 @@ class BubbleView(context: Context) : View(context) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val oval = RectF()
-    private val mic = ContextCompat.getDrawable(context, R.drawable.ic_stat_mic)?.mutate()
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
@@ -56,7 +50,6 @@ class BubbleView(context: Context) : View(context) {
         val cx = width / 2f
         val cy = height / 2f
         val r = min(width, height) * 0.31f * (1 - press * 0.06f)
-        val listening = mode == Mode.LISTENING
 
         // Shadow: a soft gradient ellipse, so it shows over any background without blur support.
         val shadowRadius = r * 1.35f
@@ -69,29 +62,13 @@ class BubbleView(context: Context) : View(context) {
         canvas.drawCircle(cx, cy + r * 0.18f, shadowRadius, fill)
         fill.shader = null
 
-        // Disc.
-        fill.color = when {
-            listening -> ACCENT
-            dark -> 0xFF22252F.toInt()
-            else -> Color.WHITE
-        }
+        // Blue disc with live bars. This view has no other look: it stays blue while it fades out.
+        fill.color = ACCENT
         canvas.drawCircle(cx, cy, r, fill)
         stroke.strokeWidth = r * 0.05f
-        stroke.color = when {
-            listening -> 0x33FFFFFF
-            dark -> 0x2EFFFFFF
-            else -> 0x2E0F1115
-        }
+        stroke.color = 0x33FFFFFF
         canvas.drawCircle(cx, cy, r - stroke.strokeWidth / 2, stroke)
-
-        if (listening) {
-            drawBars(canvas, cx, cy, r, dt, now)
-        } else {
-            val s = (r * 1.0f).toInt()
-            mic?.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
-            mic?.setTint(if (dark) Color.WHITE else INK)
-            mic?.draw(canvas)
-        }
+        drawBars(canvas, cx, cy, r, dt, now)
 
         if (isShown && !paused) postInvalidateOnAnimation()
     }
@@ -123,6 +100,5 @@ class BubbleView(context: Context) : View(context) {
 
     private companion object {
         const val ACCENT = 0xFF0A6CDB.toInt()
-        const val INK = 0xFF0F1115.toInt()
     }
 }

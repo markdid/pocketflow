@@ -104,7 +104,6 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
         }
         button?.apply {
             this.dark = dark
-            mode = if (busy) BubbleView.Mode.LISTENING else BubbleView.Mode.IDLE
             paused = !busy
             animate().alpha(if (busy) 1f else 0f).setDuration(180).start()
         }
