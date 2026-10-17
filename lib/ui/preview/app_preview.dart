@@ -19,13 +19,19 @@ final class AppPreview extends MultiPreview {
   final Size? size;
 
   @override
-  // The brand is dark-only, so one variant.
+  // The app has one (light) theme, so one variant.
   List<Preview> get previews => [
-    Preview(group: group, name: name ?? 'Default', size: size, brightness: Brightness.dark, wrapper: darkThemeWrapper),
+    Preview(
+      group: group,
+      name: name ?? 'Default',
+      size: size,
+      brightness: Brightness.light,
+      wrapper: lightThemeWrapper,
+    ),
   ];
 }
 
-Widget darkThemeWrapper(Widget child) => _ThemedPreview(theme: AppThemeData.dark, child: child);
+Widget lightThemeWrapper(Widget child) => _ThemedPreview(theme: AppThemeData.light, child: child);
 
 class _ThemedPreview extends StatelessWidget {
   const _ThemedPreview({required this.theme, required this.child});
@@ -38,7 +44,7 @@ class _ThemedPreview extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: theme,
-      home: Scaffold(backgroundColor: AppColors.ink, body: child),
+      home: Scaffold(backgroundColor: AppColors.background, body: child),
     );
   }
 }

@@ -41,7 +41,7 @@ class SettingsView extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 12, 20, 140),
       children: [
-        Text('Settings', style: AppThemeData.serif(40)),
+        Text('Settings', style: AppThemeData.display(30)),
         const _Section('Voice to text'),
         SurfaceCard(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -128,6 +128,12 @@ class SettingsView extends StatelessWidget {
                   value: device.bubble,
                   onChanged: (value) => onDeviceChanged(device.copyWith(bubble: value)),
                 ),
+                _PickerRow(
+                  title: 'Bubble style',
+                  value: device.bubbleStyle.name,
+                  options: {for (final style in BubbleStyle.values) style.name: style.label},
+                  onChanged: (value) => onDeviceChanged(device.copyWith(bubbleStyle: BubbleStyle.values.byName(value))),
+                ),
                 _SwitchRow(
                   title: 'Use my headset’s mic',
                   subtitle: 'Records through a connected Bluetooth headset, like a phone call.',
@@ -197,7 +203,7 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 28, 4, 10),
-      child: Text(title, style: AppThemeData.serif(26)),
+      child: Text(title, style: AppThemeData.display(18)),
     );
   }
 }
@@ -302,7 +308,7 @@ class _PickerSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-            child: Text(title, style: AppThemeData.serif(28)),
+            child: Text(title, style: AppThemeData.display(20)),
           ),
           for (final entry in options.entries)
             ListTile(

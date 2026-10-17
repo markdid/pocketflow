@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
 
-/// Flat panel with a hairline edge.
+/// White card on the pearl background, lifted by a soft shadow.
 class SurfaceCard extends StatelessWidget {
   const SurfaceCard({
     super.key,
@@ -21,20 +21,18 @@ class SurfaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(radius),
-      side: const BorderSide(color: AppColors.hairline),
-    );
-    return Material(
-      color: AppColors.surface,
-      shape: shape,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        highlightColor: Colors.white.withValues(alpha: 0.03),
-        splashColor: Colors.white.withValues(alpha: 0.04),
-        child: Padding(padding: padding, child: child),
+    final radius = BorderRadius.circular(this.radius);
+    return DecoratedBox(
+      decoration: BoxDecoration(borderRadius: radius, boxShadow: AppColors.cardShadow),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }

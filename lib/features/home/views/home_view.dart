@@ -100,7 +100,7 @@ class HomeView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text('Recent', style: AppThemeData.serif(30)),
+                    Text('Recent', style: AppThemeData.display(18)),
                     const SizedBox(width: 10),
                     if (history.isNotEmpty)
                       Text('${history.length}', style: AppThemeData.mono(13, color: AppColors.textFaint)),
@@ -138,7 +138,7 @@ class _Header extends StatelessWidget {
     final phone = this.phone;
     return Row(
       children: [
-        Text('PocketFlow', style: AppThemeData.serif(36)),
+        Text('PocketFlow', style: AppThemeData.display(26)),
         const Spacer(),
         if (phone != null) _ReadyPill(on: phone.armed, onChanged: phone.onArmedChanged),
       ],
@@ -156,6 +156,7 @@ class _ReadyPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = on ? AppColors.text : AppColors.textFaint;
+    final dot = on ? AppColors.accent : AppColors.textFaint;
     return Semantics(
       toggled: on,
       label: 'Ready to dictate',
@@ -167,7 +168,7 @@ class _ReadyPill extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(99),
-            border: Border.all(color: AppColors.hairline),
+            boxShadow: AppColors.cardShadow,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -176,7 +177,7 @@ class _ReadyPill extends StatelessWidget {
                 duration: const Duration(milliseconds: 300),
                 width: 7,
                 height: 7,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
               Text(on ? 'Ready' : 'Off', style: AppThemeData.geist(13, weight: 560, color: color)),
@@ -225,13 +226,13 @@ class _OrbSection extends StatelessWidget {
         VoiceOrb(
           mode: mode,
           level: level,
-          size: 280,
+          size: 220,
           onTap: onTap,
           semanticLabel: state == DictationState.listening ? 'Finish dictating' : 'Start dictating',
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
-          child: Text(title, key: ValueKey(title), style: AppThemeData.serif(40)),
+          child: Text(title, key: ValueKey(title), style: AppThemeData.display(28)),
         ),
         const SizedBox(height: 10),
         AnimatedSwitcher(
@@ -242,7 +243,7 @@ class _OrbSection extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppThemeData.geist(
               14,
-              color: state == DictationState.error ? AppColors.signal : AppColors.textMuted,
+              color: state == DictationState.error ? AppColors.danger : AppColors.textMuted,
               height: 1.45,
             ),
           ),
@@ -294,7 +295,7 @@ class _Stat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: AppThemeData.serif(34, height: 1)),
+          Text(value, style: AppThemeData.display(24, height: 1)),
           const SizedBox(height: 4),
           Text(label, style: AppThemeData.geist(12, color: AppColors.textFaint)),
         ],
@@ -320,12 +321,12 @@ class _WalkModeCard extends StatelessWidget {
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: phone.walkMode ? AppColors.text : AppColors.surfaceHigh,
+              color: phone.walkMode ? AppColors.accent.withValues(alpha: 0.1) : AppColors.surfaceHigh,
             ),
             child: Icon(
               Icons.headphones_rounded,
               size: 22,
-              color: phone.walkMode ? AppColors.ink : AppColors.textMuted,
+              color: phone.walkMode ? AppColors.accent : AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 14),
@@ -366,7 +367,7 @@ class _SetupCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Set up', style: AppThemeData.serif(28)),
+              Text('Set up', style: AppThemeData.display(20)),
               const Spacer(),
               Text('$done of ${steps.length}', style: AppThemeData.mono(12)),
             ],

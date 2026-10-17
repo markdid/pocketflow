@@ -30,7 +30,7 @@ class VocabularyView extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text('Vocabulary', style: AppThemeData.serif(40))),
+            Expanded(child: Text('Vocabulary', style: AppThemeData.display(30))),
             _AddButton(onTap: onAdd),
           ],
         ),
@@ -88,7 +88,7 @@ class _AddButton extends StatelessWidget {
       onPressed: onTap,
       style: IconButton.styleFrom(
         backgroundColor: AppColors.text,
-        foregroundColor: AppColors.ink,
+        foregroundColor: AppColors.onText,
         minimumSize: const Size.square(48),
       ),
       icon: const Icon(Icons.add_rounded),
@@ -108,7 +108,7 @@ class _SectionTitle extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: [
-        Text(title, style: AppThemeData.serif(28)),
+        Text(title, style: AppThemeData.display(18)),
         const SizedBox(width: 10),
         if (count > 0) Text('$count', style: AppThemeData.mono(13, color: AppColors.textFaint)),
       ],
@@ -188,7 +188,7 @@ class _RuleRow extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 10),
             child: Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.textMuted),
           ),
-          Flexible(child: Text(rule.to, style: AppThemeData.serif(24))),
+          Flexible(child: Text(rule.to, style: AppThemeData.geist(17, weight: 600))),
           const Spacer(),
           if (rule.source == TermSource.learned)
             const Icon(Icons.auto_awesome, size: 13, color: AppColors.textFaint, semanticLabel: 'Learned'),

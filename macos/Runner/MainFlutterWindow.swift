@@ -17,7 +17,7 @@ class MainFlutterWindow: NSWindow {
     titleVisibility = .hidden
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = true
-    backgroundColor = NSColor(red: 0.039, green: 0.039, blue: 0.043, alpha: 1)
+    backgroundColor = NSColor(red: 0.961, green: 0.965, blue: 0.973, alpha: 1)
     minSize = NSSize(width: 420, height: 640)
     setContentSize(NSSize(width: 460, height: 820))
     center()
@@ -307,14 +307,16 @@ final class DictationHUD {
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
     let blur = NSVisualEffectView(frame: wave.frame)
-    blur.material = .hudWindow
+    blur.material = .popover
+    blur.appearance = NSAppearance(named: .aqua)
+    blur.alphaValue = 0.94
     blur.blendingMode = .behindWindow
     blur.state = .active
     blur.wantsLayer = true
     blur.layer?.cornerRadius = wave.frame.height / 2
     blur.layer?.masksToBounds = true
     blur.layer?.borderWidth = 1
-    blur.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+    blur.layer?.borderColor = NSColor.black.withAlphaComponent(0.08).cgColor
     blur.addSubview(wave)
     panel.contentView = blur
     return panel
@@ -327,7 +329,8 @@ final class HUDWaveView: NSView {
   private var history = [CGFloat](repeating: 0, count: 22)
   private var timer: Timer?
   private var phase: CGFloat = 0
-  private static let signal = NSColor(red: 1, green: 0.353, blue: 0.122, alpha: 1)
+  private static let accent = NSColor(red: 0.039, green: 0.424, blue: 0.859, alpha: 1)
+  private static let ink = NSColor(red: 0.059, green: 0.067, blue: 0.082, alpha: 1)
 
   func start() {
     guard timer == nil else { return }
@@ -349,9 +352,9 @@ final class HUDWaveView: NSView {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    // Live dot: the one place the signal color appears on desktop.
+    // Live dot in the accent; grey while writing.
     let dot = NSRect(x: 16, y: bounds.midY - 3.5, width: 7, height: 7)
-    (processing ? NSColor.white.withAlphaComponent(0.35) : Self.signal).setFill()
+    (processing ? Self.ink.withAlphaComponent(0.3) : Self.accent).setFill()
     NSBezierPath(ovalIn: dot).fill()
 
     let count = history.count
@@ -364,7 +367,7 @@ final class HUDWaveView: NSView {
       let shimmer = processing ? 0.5 + 0.5 * sin(phase * 2 - CGFloat(index) * 0.45) : 1
       let height = max(3, (4 + value * (bounds.height - 18)) * shimmer)
       let rect = NSRect(x: left + CGFloat(index) * (barWidth + gap), y: (bounds.height - height) / 2, width: barWidth, height: height)
-      NSColor.white.withAlphaComponent(processing ? 0.45 : 0.9).setFill()
+      Self.ink.withAlphaComponent(processing ? 0.35 : 0.85).setFill()
       NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
     }
   }

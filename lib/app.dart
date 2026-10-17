@@ -25,14 +25,13 @@ class App extends ConsumerWidget {
     ref.listen(desktopDictationProvider, (_, _) {});
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: Colors.transparent,
       ),
       child: MaterialApp.router(
         title: 'PocketFlow',
-        theme: AppThemeData.dark,
-        themeMode: ThemeMode.dark,
+        theme: AppThemeData.light,
         routerConfig: ref.watch(routerProvider),
         debugShowCheckedModeBanner: false,
         builder: Platform.isMacOS ? _clearTrafficLights : null,

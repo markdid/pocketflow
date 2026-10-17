@@ -35,8 +35,3 @@ flutter:
     - family: GeistMono
       fonts:
         - asset: assets/fonts/GeistMono.ttf
-    - family: InstrumentSerif
-      fonts:
-        - asset: assets/fonts/InstrumentSerif-Regular.ttf
-        - asset: assets/fonts/InstrumentSerif-Italic.ttf
-          style: italic

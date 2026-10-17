@@ -62,6 +62,56 @@ extension DictationStateMapperExtension on DictationState {
   }
 }
 
+class BubbleStyleMapper extends EnumMapper<BubbleStyle> {
+  BubbleStyleMapper._();
+
+  static BubbleStyleMapper? _instance;
+  static BubbleStyleMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = BubbleStyleMapper._());
+    }
+    return _instance!;
+  }
+
+  static BubbleStyle fromValue(dynamic value) {
+    ensureInitialized();
+    return MapperContainer.globals.fromValue(value);
+  }
+
+  @override
+  BubbleStyle decode(dynamic value) {
+    switch (value) {
+      case r'auto':
+        return BubbleStyle.auto;
+      case r'light':
+        return BubbleStyle.light;
+      case r'dark':
+        return BubbleStyle.dark;
+      default:
+        throw MapperException.unknownEnumValue(value);
+    }
+  }
+
+  @override
+  dynamic encode(BubbleStyle self) {
+    switch (self) {
+      case BubbleStyle.auto:
+        return r'auto';
+      case BubbleStyle.light:
+        return r'light';
+      case BubbleStyle.dark:
+        return r'dark';
+    }
+  }
+}
+
+extension BubbleStyleMapperExtension on BubbleStyle {
+  String toValue() {
+    BubbleStyleMapper.ensureInitialized();
+    return MapperContainer.globals.toValue<BubbleStyle>(this) as String;
+  }
+}
+
 class HotkeyModeMapper extends EnumMapper<HotkeyMode> {
   HotkeyModeMapper._();
 
@@ -394,6 +444,7 @@ class AndroidDeviceSettingsMapper
     if (_instance == null) {
       MapperContainer.globals.use(_instance = AndroidDeviceSettingsMapper._());
       HotkeyModeMapper.ensureInitialized();
+      BubbleStyleMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -422,6 +473,13 @@ class AndroidDeviceSettingsMapper
     opt: true,
     def: true,
   );
+  static BubbleStyle _$bubbleStyle(AndroidDeviceSettings v) => v.bubbleStyle;
+  static const Field<AndroidDeviceSettings, BubbleStyle> _f$bubbleStyle = Field(
+    'bubbleStyle',
+    _$bubbleStyle,
+    opt: true,
+    def: BubbleStyle.auto,
+  );
   static bool _$remoteDesktopTyping(AndroidDeviceSettings v) =>
       v.remoteDesktopTyping;
   static const Field<AndroidDeviceSettings, bool> _f$remoteDesktopTyping =
@@ -440,6 +498,7 @@ class AndroidDeviceSettingsMapper
     #hotkeyMode: _f$hotkeyMode,
     #bluetoothMic: _f$bluetoothMic,
     #bubble: _f$bubble,
+    #bubbleStyle: _f$bubbleStyle,
     #remoteDesktopTyping: _f$remoteDesktopTyping,
     #walkAutoStopSeconds: _f$walkAutoStopSeconds,
   };
@@ -449,6 +508,7 @@ class AndroidDeviceSettingsMapper
       hotkeyMode: data.dec(_f$hotkeyMode),
       bluetoothMic: data.dec(_f$bluetoothMic),
       bubble: data.dec(_f$bubble),
+      bubbleStyle: data.dec(_f$bubbleStyle),
       remoteDesktopTyping: data.dec(_f$remoteDesktopTyping),
       walkAutoStopSeconds: data.dec(_f$walkAutoStopSeconds),
     );
@@ -528,6 +588,7 @@ abstract class AndroidDeviceSettingsCopyWith<
     HotkeyMode? hotkeyMode,
     bool? bluetoothMic,
     bool? bubble,
+    BubbleStyle? bubbleStyle,
     bool? remoteDesktopTyping,
     int? walkAutoStopSeconds,
   });
@@ -549,6 +610,7 @@ class _AndroidDeviceSettingsCopyWithImpl<$R, $Out>
     HotkeyMode? hotkeyMode,
     bool? bluetoothMic,
     bool? bubble,
+    BubbleStyle? bubbleStyle,
     bool? remoteDesktopTyping,
     int? walkAutoStopSeconds,
   }) => $apply(
@@ -556,6 +618,7 @@ class _AndroidDeviceSettingsCopyWithImpl<$R, $Out>
       if (hotkeyMode != null) #hotkeyMode: hotkeyMode,
       if (bluetoothMic != null) #bluetoothMic: bluetoothMic,
       if (bubble != null) #bubble: bubble,
+      if (bubbleStyle != null) #bubbleStyle: bubbleStyle,
       if (remoteDesktopTyping != null)
         #remoteDesktopTyping: remoteDesktopTyping,
       if (walkAutoStopSeconds != null)
@@ -567,6 +630,7 @@ class _AndroidDeviceSettingsCopyWithImpl<$R, $Out>
     hotkeyMode: data.get(#hotkeyMode, or: $value.hotkeyMode),
     bluetoothMic: data.get(#bluetoothMic, or: $value.bluetoothMic),
     bubble: data.get(#bubble, or: $value.bubble),
+    bubbleStyle: data.get(#bubbleStyle, or: $value.bubbleStyle),
     remoteDesktopTyping: data.get(
       #remoteDesktopTyping,
       or: $value.remoteDesktopTyping,

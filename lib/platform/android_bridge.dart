@@ -7,6 +7,18 @@ part 'android_bridge.mapper.dart';
 @MappableEnum()
 enum DictationState { idle, listening, transcribing, error }
 
+/// Look of the floating bubble, which sits over other apps' light and dark screens.
+@MappableEnum()
+enum BubbleStyle {
+  auto('Match system'),
+  light('Light'),
+  dark('Dark');
+
+  const BubbleStyle(this.label);
+
+  final String label;
+}
+
 /// Hardware-keyboard trigger for the accessibility service (Bluetooth keyboards, RustDesk sessions).
 @MappableEnum()
 enum HotkeyMode {
@@ -56,6 +68,7 @@ class AndroidDeviceSettings with AndroidDeviceSettingsMappable {
     this.hotkeyMode = HotkeyMode.capsLock,
     this.bluetoothMic = true,
     this.bubble = true,
+    this.bubbleStyle = BubbleStyle.auto,
     this.remoteDesktopTyping = true,
     this.walkAutoStopSeconds = 0,
   });
@@ -67,6 +80,7 @@ class AndroidDeviceSettings with AndroidDeviceSettingsMappable {
 
   /// Floating mic button shown next to focused text fields.
   final bool bubble;
+  final BubbleStyle bubbleStyle;
 
   /// Type into RustDesk and other remote-desktop apps key by key through the PocketFlow keyboard.
   final bool remoteDesktopTyping;

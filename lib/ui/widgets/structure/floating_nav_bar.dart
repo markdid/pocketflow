@@ -18,29 +18,38 @@ class FloatingNavBar extends StatelessWidget {
       minimum: const EdgeInsets.only(bottom: 12),
       child: Center(
         heightFactor: 1,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.88),
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: AppColors.hairline),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final (index, (icon, label)) in items.indexed)
-                      _NavItem(
-                        icon: icon,
-                        label: label,
-                        selected: index == selectedIndex,
-                        onTap: () => onSelected(index),
-                      ),
-                  ],
+        // Shadow outside the clip, frosted fill inside it.
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(99),
+            boxShadow: const [
+              BoxShadow(color: Color(0x2E0F1115), blurRadius: 24, offset: Offset(0, 8), spreadRadius: -8),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: AppColors.hairline),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final (index, (icon, label)) in items.indexed)
+                        _NavItem(
+                          icon: icon,
+                          label: label,
+                          selected: index == selectedIndex,
+                          onTap: () => onSelected(index),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -79,14 +88,14 @@ class _NavItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 20, color: selected ? AppColors.ink : AppColors.textMuted),
+              Icon(icon, size: 20, color: selected ? AppColors.onText : AppColors.textMuted),
               AnimatedSize(
                 duration: const Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
                 child: selected
                     ? Padding(
                         padding: const EdgeInsets.only(left: 8),
-                        child: Text(label, style: AppThemeData.geist(14, weight: 600, color: AppColors.ink)),
+                        child: Text(label, style: AppThemeData.geist(14, weight: 600, color: AppColors.onText)),
                       )
                     : const SizedBox.shrink(),
               ),

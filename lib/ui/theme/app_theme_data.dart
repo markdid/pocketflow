@@ -1,29 +1,34 @@
 import 'package:flutter/material.dart';
 
-/// PocketFlow's palette: ink and paper-white, with one signal color that appears only while the mic is live.
+/// PocketFlow's palette ("Pearl"): cool off-white, white cards with soft shadows, near-black text, and one blue
+/// accent for live and "on" states.
 class AppColors {
   AppColors._();
 
-  static const ink = Color(0xFF0A0A0B);
-  static const surface = Color(0xFF141416);
-  static const surfaceHigh = Color(0xFF1E1E21);
-  static const hairline = Color(0x17FFFFFF);
+  static const background = Color(0xFFF5F6F8);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceHigh = Color(0xFFEEF0F3);
+  static const hairline = Color(0xFFE6E8EC);
 
-  static const text = Color(0xFFF2F1EE);
-  static const textMuted = Color(0xFF8E8D93);
-  static const textFaint = Color(0xFF5B5A60);
+  static const text = Color(0xFF0F1115);
+  static const textMuted = Color(0xFF5F6672);
+  static const textFaint = Color(0xFF9AA1AD);
 
-  /// The live-mic color. Use it for listening and attention states only.
-  static const signal = Color(0xFFFF5A1F);
+  /// Foreground on [text]-colored fills (the selected tab, primary buttons).
+  static const onText = Color(0xFFFFFFFF);
+
+  /// Live mic and "on" states.
+  static const accent = Color(0xFF0A6CDB);
+  static const danger = Color(0xFFC5352B);
+
+  /// The soft lift under white cards.
+  static const cardShadow = [BoxShadow(color: Color(0x0D0F1115), blurRadius: 2, offset: Offset(0, 1))];
 }
 
 class AppThemeData {
   AppThemeData._();
 
-  static final ThemeData dark = _build();
-
-  /// The brand is dark-only; previews and the app both use this.
-  static ThemeData get light => dark;
+  static final ThemeData light = _build();
 
   static TextStyle geist(double size, {double weight = 400, Color color = AppColors.text, double? height}) => TextStyle(
     fontFamily: 'Geist',
@@ -35,13 +40,15 @@ class AppThemeData {
     letterSpacing: size >= 20 ? -0.4 : -0.1,
   );
 
-  static TextStyle serif(double size, {Color color = AppColors.text, bool italic = true, double? height}) => TextStyle(
-    fontFamily: 'InstrumentSerif',
+  /// Headings: Geist, heavier and tightly tracked.
+  static TextStyle display(double size, {Color color = AppColors.text, double? height}) => TextStyle(
+    fontFamily: 'Geist',
     fontSize: size,
-    height: height ?? 1.05,
+    height: height ?? 1.1,
     color: color,
-    fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-    letterSpacing: -0.5,
+    fontVariations: const [FontVariation.weight(640)],
+    fontWeight: FontWeight.w600,
+    letterSpacing: -size * 0.032,
   );
 
   static TextStyle mono(double size, {Color color = AppColors.textMuted}) =>
@@ -51,32 +58,32 @@ class AppThemeData {
       FontWeight.values[((weight / 100).round() - 1).clamp(0, FontWeight.values.length - 1)];
 
   static ThemeData _build() {
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.textMuted, brightness: Brightness.dark).copyWith(
-      primary: AppColors.text,
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent).copyWith(
+      primary: AppColors.accent,
       secondary: AppColors.textMuted,
-      tertiary: AppColors.signal,
+      tertiary: AppColors.accent,
       surface: AppColors.surface,
       onSurface: AppColors.text,
-      onPrimary: AppColors.ink,
+      onPrimary: AppColors.onText,
       onSurfaceVariant: AppColors.textMuted,
-      error: AppColors.signal,
+      error: AppColors.danger,
       outline: AppColors.hairline,
     );
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.ink,
+      scaffoldBackgroundColor: AppColors.background,
       canvasColor: AppColors.surface,
       fontFamily: 'Geist',
       splashFactory: InkRipple.splashFactory,
       textTheme: TextTheme(
-        displayLarge: serif(56),
-        displayMedium: serif(44),
-        displaySmall: serif(34),
-        headlineMedium: serif(28),
-        headlineSmall: serif(24),
+        displayLarge: display(44),
+        displayMedium: display(36),
+        displaySmall: display(30),
+        headlineMedium: display(24),
+        headlineSmall: display(20),
         titleLarge: geist(20, weight: 560),
         titleMedium: geist(16, weight: 560),
         titleSmall: geist(13, weight: 600, color: AppColors.textMuted),
@@ -92,24 +99,24 @@ class AppThemeData {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: serif(30),
+        titleTextStyle: display(24),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.ink : AppColors.textFaint,
+          (states) => states.contains(WidgetState.selected) ? AppColors.onText : AppColors.surface,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.text : AppColors.surfaceHigh,
+          (states) => states.contains(WidgetState.selected) ? AppColors.accent : AppColors.hairline,
         ),
         trackOutlineColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.text : AppColors.hairline,
+          (states) => states.contains(WidgetState.selected) ? AppColors.accent : AppColors.hairline,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceHigh,
+        fillColor: AppColors.surface,
         labelStyle: geist(14, color: AppColors.textMuted),
-        floatingLabelStyle: geist(13, color: AppColors.textMuted),
+        floatingLabelStyle: geist(13, color: AppColors.accent),
         helperStyle: geist(12, color: AppColors.textFaint, height: 1.4),
         hintStyle: geist(14, color: AppColors.textFaint),
         border: OutlineInputBorder(
@@ -122,7 +129,7 @@ class AppThemeData {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.textMuted),
+          borderSide: const BorderSide(color: AppColors.accent, width: 1.4),
         ),
       ),
       dropdownMenuTheme: const DropdownMenuThemeData(
@@ -131,7 +138,7 @@ class AppThemeData {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.text,
-          foregroundColor: AppColors.ink,
+          foregroundColor: AppColors.onText,
           textStyle: geist(15, weight: 600),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
           shape: const StadiumBorder(),
@@ -142,8 +149,8 @@ class AppThemeData {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.surface,
-        contentTextStyle: geist(14),
+        backgroundColor: AppColors.text,
+        contentTextStyle: geist(14, color: AppColors.onText),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: AppColors.hairline),
@@ -158,7 +165,7 @@ class AppThemeData {
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: serif(26),
+        titleTextStyle: display(20),
         contentTextStyle: geist(14, color: AppColors.textMuted, height: 1.45),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
@@ -167,7 +174,7 @@ class AppThemeData {
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.text,
-        foregroundColor: AppColors.ink,
+        foregroundColor: AppColors.onText,
         shape: StadiumBorder(),
       ),
       dividerTheme: const DividerThemeData(color: AppColors.hairline, space: 1),

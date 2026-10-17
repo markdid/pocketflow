@@ -79,7 +79,7 @@ class _AddSheetState extends State<_AddSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Add a word', style: AppThemeData.serif(30)),
+          Text('Add a word', style: AppThemeData.display(22)),
           const SizedBox(height: 4),
           Text(
             'A name or term PocketFlow should always spell this way.',

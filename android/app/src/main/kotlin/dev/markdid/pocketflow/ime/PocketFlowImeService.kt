@@ -98,23 +98,31 @@ class PocketFlowImeService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         val dp = { value: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt() }
-        val serif = ResourcesCompat.getFont(this, R.font.instrument_serif_italic)
         val sans = ResourcesCompat.getFont(this, R.font.geist)
+        // Pearl in light mode, graphite in dark mode, like the system keyboard around it.
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val panel = if (night) 0xFF14161C.toInt() else 0xFFF5F6F8.toInt()
+        val ink = if (night) 0xFFECEEF3.toInt() else 0xFF0F1115.toInt()
+        val muted = if (night) 0xFF9096A6.toInt() else 0xFF5F6672.toInt()
+        val key = if (night) 0xFF1C1F28.toInt() else 0xFFFFFFFF.toInt()
 
         val status = TextView(this).apply {
             gravity = Gravity.CENTER
-            textSize = 26f
-            typeface = serif
-            setTextColor(0xFFF2F1EE.toInt())
+            textSize = 22f
+            typeface = sans
+            setTypeface(sans, android.graphics.Typeface.BOLD)
+            letterSpacing = -0.03f
+            setTextColor(ink)
         }
         val hint = TextView(this).apply {
             gravity = Gravity.CENTER
             textSize = 12.5f
             typeface = sans
-            setTextColor(0xFF5B5A60.toInt())
+            setTextColor(muted)
             setPadding(0, dp(2), 0, 0)
         }
         val orb = OrbView(this).apply {
+            dark = night
             contentDescription = "Dictate"
             showMicWhenIdle = true
             levelProvider = { DictationService.levelSource?.invoke() ?: 0f }
@@ -132,15 +140,15 @@ class PocketFlowImeService : InputMethodService() {
                 true
             }
         }
-        val switchKey = keyButton(R.drawable.ic_key_keyboard, "Switch keyboard") {
+        val switchKey = keyButton(R.drawable.ic_key_keyboard, "Switch keyboard", key, muted) {
             if (!switchToNextInputMethod(false)) {
                 getSystemService(android.view.inputmethod.InputMethodManager::class.java).showInputMethodPicker()
             }
         }
-        val backspace = keyButton(R.drawable.ic_key_backspace, "Delete") {
+        val backspace = keyButton(R.drawable.ic_key_backspace, "Delete", key, muted) {
             connection()?.let { sendDownUp(it, KeyEvent.KEYCODE_DEL, 0) }
         }
-        val enter = keyButton(R.drawable.ic_key_return, "Enter") {
+        val enter = keyButton(R.drawable.ic_key_return, "Enter", key, muted) {
             connection()?.let { sendDownUp(it, KeyEvent.KEYCODE_ENTER, 0) }
         }
 
@@ -161,19 +169,20 @@ class PocketFlowImeService : InputMethodService() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(18))
-            setBackgroundColor(0xFF0A0A0B.toInt())
+            setBackgroundColor(panel)
             addView(status)
             addView(hint)
             addView(row)
         }
     }
 
-    private fun keyButton(icon: Int, description: String, onClick: () -> Unit) = ImageButton(this).apply {
+    private fun keyButton(icon: Int, description: String, fill: Int, tint: Int, onClick: () -> Unit) = ImageButton(this).apply {
         setImageResource(icon)
-        setColorFilter(0xFF8E8D93.toInt())
+        setColorFilter(tint)
+        elevation = 2f
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(0xFF1E1E21.toInt())
+            setColor(fill)
         }
         contentDescription = description
         setOnClickListener {

@@ -2,6 +2,10 @@ package dev.markdid.pocketflow
 
 import android.content.Context
 
+/** Floating bubble look. Names match the Dart `BubbleStyle` enum. */
+@Suppress("EnumEntryName")
+enum class BubbleStyle { auto, light, dark }
+
 /** Hardware-keyboard trigger. Names match the Dart `HotkeyMode` enum. */
 @Suppress("EnumEntryName")
 enum class HotkeyMode { capsLock, ctrlShiftSpace, ctrlAltSpace, altSpace, off }
@@ -18,6 +22,9 @@ class DeviceSettings(context: Context) {
             .getOrDefault(HotkeyMode.capsLock)
     val bluetoothMic: Boolean get() = prefs.getBoolean(KEY_BLUETOOTH, true)
     val bubble: Boolean get() = prefs.getBoolean(KEY_BUBBLE, true)
+    val bubbleStyle: BubbleStyle
+        get() = runCatching { BubbleStyle.valueOf(prefs.getString(KEY_BUBBLE_STYLE, null) ?: "") }
+            .getOrDefault(BubbleStyle.auto)
     val remoteDesktopTyping: Boolean get() = prefs.getBoolean(KEY_REMOTE, true)
     val walkAutoStopSeconds: Int get() = prefs.getInt(KEY_WALK_STOP, 0)
 
@@ -33,6 +40,7 @@ class DeviceSettings(context: Context) {
         "hotkeyMode" to hotkeyMode.name,
         "bluetoothMic" to bluetoothMic,
         "bubble" to bubble,
+        "bubbleStyle" to bubbleStyle.name,
         "remoteDesktopTyping" to remoteDesktopTyping,
         "walkAutoStopSeconds" to walkAutoStopSeconds,
     )
@@ -42,6 +50,7 @@ class DeviceSettings(context: Context) {
             (map["hotkeyMode"] as? String)?.let { putString(KEY_HOTKEY, it) }
             (map["bluetoothMic"] as? Boolean)?.let { putBoolean(KEY_BLUETOOTH, it) }
             (map["bubble"] as? Boolean)?.let { putBoolean(KEY_BUBBLE, it) }
+            (map["bubbleStyle"] as? String)?.let { putString(KEY_BUBBLE_STYLE, it) }
             (map["remoteDesktopTyping"] as? Boolean)?.let { putBoolean(KEY_REMOTE, it) }
             (map["walkAutoStopSeconds"] as? Number)?.let { putInt(KEY_WALK_STOP, it.toInt()) }
         }.apply()
@@ -51,6 +60,7 @@ class DeviceSettings(context: Context) {
         const val KEY_HOTKEY = "hotkey_mode"
         const val KEY_BLUETOOTH = "bluetooth_mic"
         const val KEY_BUBBLE = "bubble"
+        const val KEY_BUBBLE_STYLE = "bubble_style"
         const val KEY_REMOTE = "remote_desktop_typing"
         const val KEY_WALK_STOP = "walk_auto_stop_seconds"
         const val KEY_ARMED = "armed"

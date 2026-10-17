@@ -16,11 +16,11 @@ enum OrbMode {
   /// Mic open: the surface ripples with the voice level.
   listening,
 
-  /// Transcribing and cleaning up: a thin beam circles the orb.
+  /// Transcribing and cleaning up: a thin blue beam circles the orb.
   processing,
 }
 
-/// A matte liquid orb that ripples with the voice and lights up in the signal color while listening. Tap to dictate.
+/// A pearl orb that ripples with the voice and gains a soft blue halo while listening. Tap to dictate.
 class VoiceOrb extends StatefulWidget {
   const VoiceOrb({super.key, required this.mode, this.level, this.size = 220, this.onTap, this.semanticLabel});
 
@@ -121,79 +121,63 @@ class _OrbPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final t = f.time;
     final base = size.shortestSide * 0.30 * (1 - f.press * 0.05) * (1 + 0.015 * sin(t * 1.6));
-    // How "live" the orb is: 0 at rest, up to 1 on loud speech. Only this brings in the signal color.
+    // How "live" the orb is: 0 at rest, up to 1 on loud speech. Only this brings in the accent.
     final live = (f.energy - 0.18).clamp(0.0, 1.0) / 0.82 * (1 - f.processing);
-    final dim = 1 - f.asleep * 0.6;
 
-    // Signal glow behind the orb, only while listening.
+    // Soft halo rings while listening.
     if (live > 0.01) {
-      final glowRadius = base * (1.3 + f.level * 0.25);
-      canvas.drawCircle(
-        center,
-        glowRadius,
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              AppColors.signal.withValues(alpha: 0.14 * live),
-              AppColors.signal.withValues(alpha: 0),
-            ],
-            stops: const [0.7, 1],
-          ).createShader(Rect.fromCircle(center: center, radius: glowRadius)),
-      );
+      for (final (scale, alpha) in [(1.36 + f.level * 0.16, 0.05), (1.17 + f.level * 0.1, 0.10)]) {
+        canvas.drawCircle(center, base * scale, Paint()..color = AppColors.accent.withValues(alpha: alpha * live));
+      }
     }
 
-    final ripple = 0.018 + f.energy * 0.025 + f.level * 0.11;
+    final ripple = 0.016 + f.energy * 0.02 + f.level * 0.09;
     final shape = _blob(center, base, t, ripple);
-    final bounds = Rect.fromCircle(center: center, radius: base * 1.3);
 
-    canvas.save();
-    canvas.clipPath(shape);
-
-    // Matte charcoal, lit from the top left.
-    canvas.drawRect(
-      bounds,
+    // Drop shadow beneath the pearl.
+    canvas.drawPath(
+      shape.shift(Offset(0, base * 0.22)),
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.45, -0.55),
-          radius: 1.25,
-          colors: [
-            Color.lerp(AppColors.surface, const Color(0xFF4A4A50), dim)!,
-            const Color(0xFF1A1A1D),
-            const Color(0xFF0C0C0E),
-          ],
-          stops: const [0, 0.55, 1],
-        ).createShader(Rect.fromCircle(center: center, radius: base)),
+        ..color = Color.lerp(const Color(0x4A1E283C), AppColors.accent.withValues(alpha: 0.35), live)!
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, base * 0.22),
     );
 
-    // Rim light: faint white at rest, the signal color when the mic is live.
-    final rimColor = Color.lerp(Colors.white.withValues(alpha: 0.10 * dim), AppColors.signal, live)!;
+    // Pearl body, lit from the top left.
+    final body = Rect.fromCircle(center: center, radius: base);
     canvas.drawPath(
       shape,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = base * (0.035 + f.level * 0.025)
-        ..color = rimColor
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, base * 0.012),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.36, -0.44),
+          radius: 1.15,
+          colors: [Color(0xFFFFFFFF), Color(0xFFF1F3F6), Color(0xFFD9DEE6), Color(0xFFC4CAD4)],
+          stops: [0, 0.3, 0.68, 1],
+        ).createShader(body),
     );
 
-    // Soft specular highlight.
-    final glint = center + Offset(-base * 0.4, -base * 0.48);
-    final glintRect = Rect.fromCenter(center: glint, width: base * 0.8, height: base * 0.45);
-    canvas.drawOval(
-      glintRect,
+    // Inner shade along the bottom edge, tinted blue while listening.
+    canvas.save();
+    canvas.clipPath(shape);
+    final shade = Rect.fromCircle(center: center + Offset(0, base * 0.55), radius: base * 1.1);
+    canvas.drawCircle(
+      shade.center,
+      shade.width / 2,
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.10 * dim),
-            Colors.white.withValues(alpha: 0),
+            Color.lerp(const Color(0x40788296), AppColors.accent.withValues(alpha: 0.28), live)!,
+            Colors.transparent,
           ],
-        ).createShader(glintRect),
+        ).createShader(shade),
     );
+    if (f.asleep > 0.01) {
+      canvas.drawRect(body.inflate(base), Paint()..color = AppColors.background.withValues(alpha: 0.45 * f.asleep));
+    }
     canvas.restore();
 
-    // Writing: a thin white beam circling the orb.
+    // Writing: a thin accent beam circling the orb.
     if (f.processing > 0.01) {
-      final ring = Rect.fromCircle(center: center, radius: base * 1.28);
+      final ring = Rect.fromCircle(center: center, radius: base * 1.24);
       final start = f.spin * 1.6;
       canvas.drawArc(
         ring,
@@ -203,11 +187,11 @@ class _OrbPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = base * 0.022
+          ..strokeWidth = base * 0.03
           ..shader = SweepGradient(
             colors: [
-              Colors.white.withValues(alpha: 0),
-              Colors.white.withValues(alpha: 0.9 * f.processing),
+              AppColors.accent.withValues(alpha: 0),
+              AppColors.accent.withValues(alpha: f.processing),
             ],
             stops: const [0, 0.24],
             transform: GradientRotation(start),

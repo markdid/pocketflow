@@ -10,6 +10,9 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.animation.OvershootInterpolator
+import android.content.res.Configuration
+import dev.markdid.pocketflow.BubbleStyle
+import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.dictation.DictationService
 import dev.markdid.pocketflow.dictation.DictationState
 import dev.markdid.pocketflow.ui.OrbView
@@ -17,7 +20,8 @@ import kotlin.math.abs
 
 /**
  * Floating voice orb drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to start,
- * tap again to finish; drag to move it along the screen edge. It ripples with your voice while listening.
+ * tap again to finish; drag to move it along the screen edge. It ripples with your voice while listening, sits a
+ * little translucent at rest, and comes in pearl or graphite (by default following the system dark mode).
  */
 class MicBubble(private val service: AccessibilityService, private val onTap: () -> Unit) {
     private val windowManager = service.getSystemService(WindowManager::class.java)
@@ -51,7 +55,8 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
         view = orb
         render(state)
         runCatching { windowManager.addView(orb, params) }.onFailure { view = null }
-        orb.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320).setInterpolator(OvershootInterpolator(1.6f)).start()
+        orb.animate().scaleX(1f).scaleY(1f).alpha(restingAlpha()).setDuration(320)
+            .setInterpolator(OvershootInterpolator(1.6f)).start()
     }
 
     fun hide() {
@@ -64,12 +69,23 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
 
     fun render(state: DictationState) {
         this.state = state
-        view?.mode = when (state) {
+        val orb = view ?: return
+        orb.dark = when (PocketFlowApp.instance.settings.bubbleStyle) {
+            BubbleStyle.light -> false
+            BubbleStyle.dark -> true
+            BubbleStyle.auto -> (service.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+        }
+        orb.mode = when (state) {
             DictationState.listening -> OrbView.Mode.LISTENING
             DictationState.transcribing -> OrbView.Mode.PROCESSING
             else -> OrbView.Mode.IDLE
         }
+        orb.animate().alpha(restingAlpha()).setDuration(200).start()
     }
+
+    /** Slightly see-through at rest so it doesn't cover what's beneath; fully solid while it's working. */
+    private fun restingAlpha() = if (state == DictationState.listening || state == DictationState.transcribing) 1f else 0.82f
 
     @SuppressLint("ClickableViewAccessibility")
     private fun attachTouch(orb: OrbView) {
