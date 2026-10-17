@@ -155,7 +155,8 @@ class OrbView(context: Context) : View(context) {
             strokePaint.shader = null
         }
 
-        if (isShown) postInvalidateOnAnimation()
+        // Faded out (the other half of the bubble is showing): stop animating until made visible again.
+        if (isShown && alpha > 0f) postInvalidateOnAnimation()
     }
 
     private fun drawBars(canvas: Canvas, cx: Float, cy: Float, base: Float, dt: Float, now: Float, color: Int) {

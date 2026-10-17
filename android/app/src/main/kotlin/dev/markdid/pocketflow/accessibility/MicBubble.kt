@@ -10,25 +10,31 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.animation.OvershootInterpolator
+import android.widget.FrameLayout
 import android.content.res.Configuration
 import dev.markdid.pocketflow.BubbleStyle
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.dictation.DictationService
 import dev.markdid.pocketflow.dictation.DictationState
+import dev.markdid.pocketflow.ui.BubbleView
 import dev.markdid.pocketflow.ui.OrbView
 import kotlin.math.abs
 
 /**
- * Floating voice orb drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to start,
- * tap again to finish; drag to move it along the screen edge. Subtle and a little translucent at rest; blue level
- * bars while listening and a blue ring while writing keep it visible on any screen. Pearl or graphite, by default
- * following the system dark mode.
+ * Floating dictation bubble drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to
+ * start, tap again to finish; drag to move it along the screen edge.
+ *
+ * At rest it's the subtle pearl orb with a small mic, a little translucent. While busy it cross-fades to a solid
+ * button that reads on any screen: blue with live level bars while listening, a spinning ring while writing. Pearl or
+ * graphite, by default following the system dark mode.
  */
 class MicBubble(private val service: AccessibilityService, private val onTap: () -> Unit) {
     private val windowManager = service.getSystemService(WindowManager::class.java)
     private val prefs = service.getSharedPreferences("pocketflow_bubble", Context.MODE_PRIVATE)
     private val size = dp(78)
-    private var view: OrbView? = null
+    private var view: FrameLayout? = null
+    private var orb: OrbView? = null
+    private var button: BubbleView? = null
     private var state = DictationState.idle
 
     private val params = WindowManager.LayoutParams(
@@ -45,24 +51,35 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
 
     fun show() {
         if (view != null) return
-        val orb = OrbView(service).apply {
+        val level = { DictationService.levelSource?.invoke() ?: 0f }
+        val restingOrb = OrbView(service).apply { levelProvider = level }
+        val busyButton = BubbleView(service).apply {
+            levelProvider = level
+            alpha = 0f
+        }
+        val container = FrameLayout(service).apply {
             contentDescription = "Dictate with PocketFlow"
-            levelProvider = { DictationService.levelSource?.invoke() ?: 0f }
+            addView(restingOrb, FrameLayout.LayoutParams(size, size))
+            addView(busyButton, FrameLayout.LayoutParams(size, size))
             scaleX = 0.4f
             scaleY = 0.4f
             alpha = 0f
         }
-        attachTouch(orb)
-        view = orb
+        attachTouch(container)
+        view = container
+        orb = restingOrb
+        button = busyButton
         render(state)
-        runCatching { windowManager.addView(orb, params) }.onFailure { view = null }
-        orb.animate().scaleX(1f).scaleY(1f).alpha(restingAlpha()).setDuration(320)
+        runCatching { windowManager.addView(container, params) }.onFailure { view = null }
+        container.animate().scaleX(1f).scaleY(1f).alpha(restingAlpha()).setDuration(320)
             .setInterpolator(OvershootInterpolator(1.6f)).start()
     }
 
     fun hide() {
         val current = view ?: return
         view = null
+        orb = null
+        button = null
         current.animate().scaleX(0.4f).scaleY(0.4f).alpha(0f).setDuration(180).withEndAction {
             runCatching { windowManager.removeView(current) }
         }.start()
@@ -70,43 +87,60 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
 
     fun render(state: DictationState) {
         this.state = state
-        val orb = view ?: return
-        orb.dark = when (PocketFlowApp.instance.settings.bubbleStyle) {
+        val container = view ?: return
+        val dark = when (PocketFlowApp.instance.settings.bubbleStyle) {
             BubbleStyle.light -> false
             BubbleStyle.dark -> true
             BubbleStyle.auto -> (service.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
         }
-        orb.mode = when (state) {
-            DictationState.listening -> OrbView.Mode.LISTENING
-            DictationState.transcribing -> OrbView.Mode.PROCESSING
-            else -> OrbView.Mode.IDLE
+        val busy = state == DictationState.listening || state == DictationState.transcribing
+        orb?.apply {
+            this.dark = dark
+            mode = OrbView.Mode.IDLE
+            animate().alpha(if (busy) 0f else 1f).setDuration(180).start()
+            invalidate()
         }
-        orb.animate().alpha(restingAlpha()).setDuration(200).start()
+        button?.apply {
+            this.dark = dark
+            mode = when (state) {
+                DictationState.listening -> BubbleView.Mode.LISTENING
+                DictationState.transcribing -> BubbleView.Mode.PROCESSING
+                else -> BubbleView.Mode.IDLE
+            }
+            animate().alpha(if (busy) 1f else 0f).setDuration(180).start()
+            invalidate()
+        }
+        container.animate().alpha(restingAlpha()).setDuration(200).start()
     }
 
     /** Slightly see-through at rest so it doesn't cover what's beneath; fully solid while it's working. */
     private fun restingAlpha() = if (state == DictationState.listening || state == DictationState.transcribing) 1f else 0.9f
 
+    private fun squeeze(pressed: Boolean) {
+        orb?.squeezed = pressed
+        button?.squeezed = pressed
+    }
+
     @SuppressLint("ClickableViewAccessibility")
-    private fun attachTouch(orb: OrbView) {
+    private fun attachTouch(container: FrameLayout) {
         var downY = 0f
         var startY = 0
         var dragging = false
-        orb.setOnTouchListener { v, event ->
+        container.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downY = event.rawY
                     startY = params.y
                     dragging = false
-                    orb.squeezed = true
+                    squeeze(true)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = event.rawY - downY
                     if (abs(dy) > dp(8)) {
                         dragging = true
-                        orb.squeezed = false
+                        squeeze(false)
                     }
                     if (dragging) {
                         params.y = (startY + dy).toInt().coerceAtLeast(0)
@@ -115,7 +149,7 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    orb.squeezed = false
+                    squeeze(false)
                     if (dragging) {
                         prefs.edit().putInt(KEY_Y, params.y).apply()
                     } else if (event.action == MotionEvent.ACTION_UP) {
