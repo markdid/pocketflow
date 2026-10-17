@@ -9,16 +9,21 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyCharacterMap
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
+import dev.markdid.pocketflow.R
 import dev.markdid.pocketflow.dictation.DictationBus
 import dev.markdid.pocketflow.dictation.DictationService
 import dev.markdid.pocketflow.dictation.DictationState
+import dev.markdid.pocketflow.ui.OrbView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +41,8 @@ import kotlinx.coroutines.launch
 class PocketFlowImeService : InputMethodService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var statusView: TextView? = null
-    private var micButton: ImageButton? = null
+    private var hintView: TextView? = null
+    private var orbView: OrbView? = null
     private var lastConnection: InputConnection? = null
     private var editorPackage: String? = null
 
@@ -53,7 +59,8 @@ class PocketFlowImeService : InputMethodService() {
         if (instance === this) instance = null
         scope.cancel()
         statusView = null
-        micButton = null
+        hintView = null
+        orbView = null
         lastConnection = null
         super.onDestroy()
     }
@@ -91,66 +98,111 @@ class PocketFlowImeService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         val dp = { value: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt() }
+        val serif = ResourcesCompat.getFont(this, R.font.instrument_serif_italic)
+        val sans = ResourcesCompat.getFont(this, R.font.geist)
+
         val status = TextView(this).apply {
             gravity = Gravity.CENTER
-            textSize = 14f
-            setPadding(0, dp(12), 0, dp(8))
+            textSize = 26f
+            typeface = serif
+            setTextColor(0xFFF4F2FF.toInt())
         }
-        val mic = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_btn_speak_now)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0xFF3F51B5.toInt())
-            }
+        val hint = TextView(this).apply {
+            gravity = Gravity.CENTER
+            textSize = 12.5f
+            typeface = sans
+            setTextColor(0xFF6C6886.toInt())
+            setPadding(0, dp(2), 0, 0)
+        }
+        val orb = OrbView(this).apply {
             contentDescription = "Dictate"
-            setOnClickListener { DictationService.toggle(this@PocketFlowImeService) }
+            showMicWhenIdle = true
+            levelProvider = { DictationService.levelSource?.invoke() ?: 0f }
+            isClickable = true
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> squeezed = true
+                    MotionEvent.ACTION_UP -> {
+                        squeezed = false
+                        v.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        DictationService.toggle(this@PocketFlowImeService)
+                    }
+                    MotionEvent.ACTION_CANCEL -> squeezed = false
+                }
+                true
+            }
         }
-        val switchKey = keyButton(android.R.drawable.ic_menu_sort_alphabetically, "Switch keyboard") {
+        val switchKey = keyButton(R.drawable.ic_key_keyboard, "Switch keyboard") {
             if (!switchToNextInputMethod(false)) {
                 getSystemService(android.view.inputmethod.InputMethodManager::class.java).showInputMethodPicker()
             }
         }
-        val backspace = keyButton(android.R.drawable.ic_input_delete, "Delete") {
+        val backspace = keyButton(R.drawable.ic_key_backspace, "Delete") {
             connection()?.let { sendDownUp(it, KeyEvent.KEYCODE_DEL, 0) }
         }
-        val enter = keyButton(android.R.drawable.ic_menu_send, "Enter") {
+        val enter = keyButton(R.drawable.ic_key_return, "Enter") {
             connection()?.let { sendDownUp(it, KeyEvent.KEYCODE_ENTER, 0) }
         }
+
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), 0, dp(16), dp(16))
-            addView(switchKey, LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(mic, LinearLayout.LayoutParams(dp(88), dp(88)))
-            addView(backspace, LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(enter, LinearLayout.LayoutParams(0, dp(48), 1f))
+            gravity = Gravity.CENTER
+            addView(switchKey, LinearLayout.LayoutParams(dp(56), dp(56)))
+            addView(View(this@PocketFlowImeService), LinearLayout.LayoutParams(0, 0, 1f))
+            addView(orb, LinearLayout.LayoutParams(dp(150), dp(150)))
+            addView(View(this@PocketFlowImeService), LinearLayout.LayoutParams(0, 0, 1f))
+            addView(backspace, LinearLayout.LayoutParams(dp(56), dp(56)))
+            addView(enter, LinearLayout.LayoutParams(dp(56), dp(56)))
         }
         statusView = status
-        micButton = mic
+        hintView = hint
+        orbView = orb
         render()
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(18))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xFF15112A.toInt(), 0xFF06060A.toInt()),
+            )
             addView(status)
+            addView(hint)
             addView(row)
         }
     }
 
     private fun keyButton(icon: Int, description: String, onClick: () -> Unit) = ImageButton(this).apply {
         setImageResource(icon)
-        setBackgroundColor(0)
+        setColorFilter(0xFFA9A4C4.toInt())
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0x14FFFFFF)
+        }
         contentDescription = description
-        setOnClickListener { onClick() }
+        setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            onClick()
+        }
     }
 
     private fun render() {
         val status = DictationBus.status.value
         statusView?.text = when (status.state) {
-            DictationState.listening -> "Listening… tap to finish"
+            DictationState.listening -> "Listening…"
             DictationState.transcribing -> "Writing…"
-            DictationState.error -> status.message
-            DictationState.idle -> "Tap the mic and speak"
+            DictationState.error -> "Hmm."
+            DictationState.idle -> "Tap to speak"
         }
-        micButton?.alpha = if (status.state == DictationState.transcribing) 0.5f else 1f
+        hintView?.text = when (status.state) {
+            DictationState.listening -> "Tap the orb when you’re done"
+            DictationState.error -> status.message
+            else -> "PocketFlow cleans it up as you go"
+        }
+        orbView?.mode = when (status.state) {
+            DictationState.listening -> OrbView.Mode.LISTENING
+            DictationState.transcribing -> OrbView.Mode.PROCESSING
+            else -> OrbView.Mode.IDLE
+        }
     }
 
     private fun hasHardwareKeyboard(): Boolean {

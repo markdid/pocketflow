@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
-import 'package:pocketflow/ui/widgets/structure/view_shell.dart';
+import 'package:pocketflow/ui/theme/app_theme_data.dart';
+import 'package:pocketflow/ui/widgets/effects/glass.dart';
 
 const transcriptionModels = {
-  'whisper-large-v3-turbo': 'Whisper large v3 turbo (fast)',
-  'whisper-large-v3': 'Whisper large v3 (most accurate)',
+  'whisper-large-v3-turbo': 'Turbo · fast',
+  'whisper-large-v3': 'Large v3 · accurate',
 };
 
 const cleanupModels = {
-  'openai/gpt-oss-20b': 'GPT-OSS 20B (fast)',
-  'openai/gpt-oss-120b': 'GPT-OSS 120B (smarter)',
+  'openai/gpt-oss-20b': 'GPT-OSS 20B',
+  'openai/gpt-oss-120b': 'GPT-OSS 120B',
   'qwen/qwen3.8-27b': 'Qwen 3.8 27B',
 };
+
+const _walkStopOptions = {'0': 'Never', '4': '4 seconds', '8': '8 seconds', '15': '15 seconds'};
 
 class SettingsView extends StatelessWidget {
   const SettingsView({
@@ -36,106 +39,152 @@ class SettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final device = this.device;
+    final onDeviceChanged = this.onDeviceChanged;
 
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: ViewShell.padding),
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 12, 20, 140),
       children: [
-        const _Section('Speech to text'),
-        _CommitTextField(
-          label: 'Groq API key',
-          helper: 'Free at console.groq.com/keys. Stored in the system keychain on this device.',
-          value: apiKey,
-          obscure: true,
-          onCommit: onApiKeyChanged,
-        ),
-        _Dropdown(
-          label: 'Transcription model',
-          value: settings.transcriptionModel,
-          options: transcriptionModels,
-          onChanged: (value) => onSettingsChanged(settings.copyWith(transcriptionModel: value)),
-        ),
-        _CommitTextField(
-          label: 'Language',
-          helper: 'Two-letter code such as en or de. Leave empty to detect automatically.',
-          value: settings.language,
-          onCommit: (value) => onSettingsChanged(settings.copyWith(language: value.trim().toLowerCase())),
+        Text('Settings', style: AppThemeData.serif(40)),
+        const _Section('Voice to text'),
+        GlassCard(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+          child: Column(
+            children: [
+              _CommitTextField(
+                label: 'Groq API key',
+                helper: 'Free at console.groq.com/keys. Stored in the system keychain on this device.',
+                value: apiKey,
+                obscure: true,
+                onCommit: onApiKeyChanged,
+              ),
+              _PickerRow(
+                title: 'Transcription model',
+                value: settings.transcriptionModel,
+                options: transcriptionModels,
+                onChanged: (value) => onSettingsChanged(settings.copyWith(transcriptionModel: value)),
+              ),
+              _PickerRow(
+                title: 'Language',
+                value: settings.language,
+                options: const {
+                  '': 'Detect automatically',
+                  'en': 'English',
+                  'es': 'Spanish',
+                  'fr': 'French',
+                  'de': 'German',
+                  'pt': 'Portuguese',
+                  'it': 'Italian',
+                  'nl': 'Dutch',
+                  'ja': 'Japanese',
+                  'zh': 'Chinese',
+                  'hi': 'Hindi',
+                },
+                onChanged: (value) => onSettingsChanged(settings.copyWith(language: value)),
+              ),
+            ],
+          ),
         ),
         const _Section('Cleanup'),
-        SwitchListTile(
-          title: const Text('Clean up dictation'),
-          subtitle: const Text('Removes filler words and false starts, applies self-corrections, fixes punctuation.'),
-          value: settings.cleanupEnabled,
-          onChanged: (value) => onSettingsChanged(settings.copyWith(cleanupEnabled: value)),
-        ),
-        _Dropdown(
-          label: 'Cleanup model',
-          value: settings.cleanupModel,
-          options: cleanupModels,
-          onChanged: (value) => onSettingsChanged(settings.copyWith(cleanupModel: value)),
-        ),
-        _CommitTextField(
-          label: 'Your style preferences',
-          helper: 'Optional, e.g. "British spelling. Never use em dashes."',
-          value: settings.customInstructions,
-          maxLines: 4,
-          onCommit: (value) => onSettingsChanged(settings.copyWith(customInstructions: value)),
-        ),
-        SwitchListTile(
-          title: const Text('Learn from my corrections'),
-          subtitle: const Text(
-            'When you fix a misheard name right after dictating, PocketFlow remembers the spelling next time.',
+        GlassCard(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Column(
+            children: [
+              _SwitchRow(
+                title: 'Polish what I say',
+                subtitle:
+                    'Drops ums and false starts, keeps only your final word on self-corrections, fixes punctuation.',
+                value: settings.cleanupEnabled,
+                onChanged: (value) => onSettingsChanged(settings.copyWith(cleanupEnabled: value)),
+              ),
+              _PickerRow(
+                title: 'Cleanup model',
+                value: settings.cleanupModel,
+                options: cleanupModels,
+                onChanged: (value) => onSettingsChanged(settings.copyWith(cleanupModel: value)),
+              ),
+              _SwitchRow(
+                title: 'Learn from my corrections',
+                subtitle: 'Fix a misheard name right after dictating and it’s spelled right next time.',
+                value: settings.learnFromCorrections,
+                onChanged: (value) => onSettingsChanged(settings.copyWith(learnFromCorrections: value)),
+              ),
+              const SizedBox(height: 8),
+              _CommitTextField(
+                label: 'Your style',
+                helper: 'Optional. For example: British spelling. Never use em dashes.',
+                value: settings.customInstructions,
+                maxLines: 4,
+                onCommit: (value) => onSettingsChanged(settings.copyWith(customInstructions: value)),
+              ),
+            ],
           ),
-          value: settings.learnFromCorrections,
-          onChanged: (value) => onSettingsChanged(settings.copyWith(learnFromCorrections: value)),
         ),
         if (device != null && onDeviceChanged != null) ...[
           const _Section('This phone'),
-          SwitchListTile(
-            title: const Text('Floating mic bubble'),
-            subtitle: const Text('Shows a mic button next to the text field you’re typing in.'),
-            value: device.bubble,
-            onChanged: (value) => onDeviceChanged!(device.copyWith(bubble: value)),
-          ),
-          SwitchListTile(
-            title: const Text('Use Bluetooth headset mic'),
-            subtitle: const Text('Records through your headset like a phone call when one is connected.'),
-            value: device.bluetoothMic,
-            onChanged: (value) => onDeviceChanged!(device.copyWith(bluetoothMic: value)),
-          ),
-          _Dropdown(
-            label: 'Walk mode: stop after silence',
-            value: device.walkAutoStopSeconds.toString(),
-            options: const {
-              '0': 'Never (press the button again)',
-              '4': '4 seconds',
-              '8': '8 seconds',
-              '15': '15 seconds',
-            },
-            onChanged: (value) => onDeviceChanged!(device.copyWith(walkAutoStopSeconds: int.parse(value))),
-          ),
-          _Dropdown(
-            label: 'Hardware keyboard hotkey',
-            value: device.hotkeyMode.name,
-            options: {for (final mode in HotkeyMode.values) mode.name: mode.label},
-            onChanged: (value) => onDeviceChanged!(device.copyWith(hotkeyMode: HotkeyMode.values.byName(value))),
-          ),
-          SwitchListTile(
-            title: const Text('Remote desktop typing'),
-            subtitle: const Text(
-              'Types into RustDesk and similar apps key by key through the PocketFlow keyboard. '
-              'Needs a one-time adb grant, see the README.',
+          GlassCard(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Column(
+              children: [
+                _SwitchRow(
+                  title: 'Floating mic bubble',
+                  subtitle: 'Appears beside the text field you’re typing in.',
+                  value: device.bubble,
+                  onChanged: (value) => onDeviceChanged(device.copyWith(bubble: value)),
+                ),
+                _SwitchRow(
+                  title: 'Use my headset’s mic',
+                  subtitle: 'Records through a connected Bluetooth headset, like a phone call.',
+                  value: device.bluetoothMic,
+                  onChanged: (value) => onDeviceChanged(device.copyWith(bluetoothMic: value)),
+                ),
+                _PickerRow(
+                  title: 'Walk mode stops after silence',
+                  value: device.walkAutoStopSeconds.toString(),
+                  options: _walkStopOptions,
+                  onChanged: (value) => onDeviceChanged(device.copyWith(walkAutoStopSeconds: int.parse(value))),
+                ),
+              ],
             ),
-            value: device.remoteDesktopTyping,
-            onChanged: (value) => onDeviceChanged!(device.copyWith(remoteDesktopTyping: value)),
+          ),
+          const _Section('Keyboards & remote desktops'),
+          GlassCard(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Column(
+              children: [
+                _PickerRow(
+                  title: 'Hardware keyboard hotkey',
+                  value: device.hotkeyMode.name,
+                  options: {for (final mode in HotkeyMode.values) mode.name: mode.label},
+                  onChanged: (value) => onDeviceChanged(device.copyWith(hotkeyMode: HotkeyMode.values.byName(value))),
+                ),
+                _SwitchRow(
+                  title: 'Type into remote desktops',
+                  subtitle: 'Key-by-key typing for RustDesk and similar apps. Needs a one-time adb grant (see README).',
+                  value: device.remoteDesktopTyping,
+                  onChanged: (value) => onDeviceChanged(device.copyWith(remoteDesktopTyping: value)),
+                ),
+              ],
+            ),
           ),
         ],
         const _Section('Advanced'),
-        _CommitTextField(
-          label: 'API base URL',
-          helper: 'Any OpenAI-compatible API. Default: $groqBaseUrl',
-          value: settings.apiBaseUrl,
-          onCommit: (value) =>
-              onSettingsChanged(settings.copyWith(apiBaseUrl: value.trim().isEmpty ? groqBaseUrl : value.trim())),
+        GlassCard(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+          child: _CommitTextField(
+            label: 'API base URL',
+            helper: 'Any OpenAI-compatible API. Default: $groqBaseUrl',
+            value: settings.apiBaseUrl,
+            onCommit: (value) =>
+                onSettingsChanged(settings.copyWith(apiBaseUrl: value.trim().isEmpty ? groqBaseUrl : value.trim())),
+          ),
+        ),
+        const SizedBox(height: 28),
+        Center(
+          child: Text(
+            'PocketFlow is open source. Your audio goes only to the API above.',
+            textAlign: TextAlign.center,
+            style: AppThemeData.geist(12, color: AppColors.textFaint),
+          ),
         ),
       ],
     );
@@ -150,37 +199,123 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary),
+      padding: const EdgeInsets.fromLTRB(4, 28, 4, 10),
+      child: Text(title, style: AppThemeData.serif(26)),
+    );
+  }
+}
+
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({required this.title, required this.subtitle, required this.value, required this.onChanged});
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppThemeData.geist(15.5, weight: 560)),
+                    const SizedBox(height: 3),
+                    Text(subtitle, style: AppThemeData.geist(13, color: AppColors.textMuted, height: 1.4)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Switch(value: value, onChanged: onChanged),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _Dropdown extends StatelessWidget {
-  const _Dropdown({required this.label, required this.value, required this.options, required this.onChanged});
+/// A row showing the current choice; tapping opens a sheet with the options.
+class _PickerRow extends StatelessWidget {
+  const _PickerRow({required this.title, required this.value, required this.options, required this.onChanged});
 
-  final String label;
+  final String title;
   final String value;
   final Map<String, String> options;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    // Keep a custom value (typed in an older version, or a model for another API) selectable.
+    // Keep a custom value (typed in an older version, or a model for another API) visible.
     final all = {if (!options.containsKey(value)) value: value, ...options};
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: DropdownButtonFormField<String>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-        isExpanded: true,
-        items: [for (final entry in all.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-        onChanged: (selected) {
-          if (selected != null && selected != value) onChanged(selected);
-        },
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () async {
+        final picked = await showModalBottomSheet<String>(
+          context: context,
+          builder: (context) => _PickerSheet(title: title, value: value, options: all),
+        );
+        if (picked != null && picked != value) onChanged(picked);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            Expanded(child: Text(title, style: AppThemeData.geist(15.5, weight: 560))),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                all[value] ?? value,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: AppThemeData.geist(14, color: AppColors.textMuted),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.unfold_more_rounded, size: 18, color: AppColors.textFaint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerSheet extends StatelessWidget {
+  const _PickerSheet({required this.title, required this.value, required this.options});
+
+  final String title;
+  final String value;
+  final Map<String, String> options;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            child: Text(title, style: AppThemeData.serif(28)),
+          ),
+          for (final entry in options.entries)
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              selected: entry.key == value,
+              selectedTileColor: AppColors.violet.withValues(alpha: 0.14),
+              title: Text(entry.value, style: AppThemeData.geist(15.5, weight: entry.key == value ? 600 : 450)),
+              trailing: entry.key == value ? const Icon(Icons.check_rounded, color: AppColors.violet) : null,
+              onTap: () => Navigator.pop(context, entry.key),
+            ),
+        ],
       ),
     );
   }
@@ -241,7 +376,7 @@ class _CommitTextFieldState extends State<_CommitTextField> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
         controller: _controller,
         focusNode: _focus,
@@ -250,16 +385,16 @@ class _CommitTextFieldState extends State<_CommitTextField> {
         minLines: 1,
         autocorrect: !widget.obscure,
         enableSuggestions: !widget.obscure,
+        style: widget.obscure ? AppThemeData.mono(14, color: AppColors.text) : AppThemeData.geist(15),
         onSubmitted: (_) => _commit(),
         decoration: InputDecoration(
           labelText: widget.label,
           helperText: widget.helper,
           helperMaxLines: 3,
-          border: const OutlineInputBorder(),
           suffixIcon: widget.obscure
               ? IconButton(
                   tooltip: _revealed ? 'Hide' : 'Show',
-                  icon: Icon(_revealed ? Icons.visibility_off : Icons.visibility),
+                  icon: Icon(_revealed ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
                   onPressed: () => setState(() => _revealed = !_revealed),
                 )
               : null,
@@ -269,7 +404,7 @@ class _CommitTextFieldState extends State<_CommitTextField> {
   }
 }
 
-@AppPreview(group: 'Settings')
+@AppPreview(group: 'Settings', size: Size(390, 1800))
 Widget settingsViewPreview() => SettingsView(
   settings: const AppSettings(),
   apiKey: 'gsk_example',

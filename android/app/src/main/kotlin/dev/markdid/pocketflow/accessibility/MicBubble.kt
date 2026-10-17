@@ -4,25 +4,27 @@ import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.WindowManager
-import android.widget.ImageView
+import android.view.animation.OvershootInterpolator
+import dev.markdid.pocketflow.dictation.DictationService
 import dev.markdid.pocketflow.dictation.DictationState
+import dev.markdid.pocketflow.ui.OrbView
 import kotlin.math.abs
 
 /**
- * Floating mic button drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to start,
- * tap again to finish; drag to move it up or down the screen edge.
+ * Floating voice orb drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to start,
+ * tap again to finish; drag to move it along the screen edge. It ripples with your voice while listening.
  */
 class MicBubble(private val service: AccessibilityService, private val onTap: () -> Unit) {
     private val windowManager = service.getSystemService(WindowManager::class.java)
     private val prefs = service.getSharedPreferences("pocketflow_bubble", Context.MODE_PRIVATE)
-    private val size = dp(52)
-    private var view: ImageView? = null
-    private val background = GradientDrawable().apply { shape = GradientDrawable.OVAL }
+    private val size = dp(78)
+    private var view: OrbView? = null
+    private var state = DictationState.idle
 
     private val params = WindowManager.LayoutParams(
         size,
@@ -32,67 +34,77 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
         PixelFormat.TRANSLUCENT,
     ).apply {
         gravity = Gravity.END or Gravity.TOP
-        x = dp(8)
+        x = 0
         y = prefs.getInt(KEY_Y, dp(320))
     }
 
     fun show() {
         if (view != null) return
-        val bubble = ImageView(service).apply {
-            setImageResource(android.R.drawable.ic_btn_speak_now)
-            this.background = this@MicBubble.background
-            elevation = dp(6).toFloat()
-            alpha = 0.92f
+        val orb = OrbView(service).apply {
             contentDescription = "Dictate with PocketFlow"
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            levelProvider = { DictationService.levelSource?.invoke() ?: 0f }
+            scaleX = 0.4f
+            scaleY = 0.4f
+            alpha = 0f
         }
-        attachTouch(bubble)
-        view = bubble
-        render(DictationState.idle)
-        runCatching { windowManager.addView(bubble, params) }.onFailure { view = null }
+        attachTouch(orb)
+        view = orb
+        render(state)
+        runCatching { windowManager.addView(orb, params) }.onFailure { view = null }
+        orb.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320).setInterpolator(OvershootInterpolator(1.6f)).start()
     }
 
     fun hide() {
         val current = view ?: return
         view = null
-        runCatching { windowManager.removeView(current) }
+        current.animate().scaleX(0.4f).scaleY(0.4f).alpha(0f).setDuration(180).withEndAction {
+            runCatching { windowManager.removeView(current) }
+        }.start()
     }
 
     fun render(state: DictationState) {
-        background.setColor(
-            when (state) {
-                DictationState.listening -> 0xFFE53935.toInt()
-                DictationState.transcribing -> 0xFF7986CB.toInt()
-                else -> 0xFF3F51B5.toInt()
-            },
-        )
-        view?.invalidate()
+        this.state = state
+        view?.mode = when (state) {
+            DictationState.listening -> OrbView.Mode.LISTENING
+            DictationState.transcribing -> OrbView.Mode.PROCESSING
+            else -> OrbView.Mode.IDLE
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun attachTouch(bubble: ImageView) {
+    private fun attachTouch(orb: OrbView) {
         var downY = 0f
         var startY = 0
         var dragging = false
-        bubble.setOnTouchListener { v, event ->
+        orb.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downY = event.rawY
                     startY = params.y
                     dragging = false
+                    orb.squeezed = true
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = event.rawY - downY
-                    if (abs(dy) > dp(8)) dragging = true
+                    if (abs(dy) > dp(8)) {
+                        dragging = true
+                        orb.squeezed = false
+                    }
                     if (dragging) {
                         params.y = (startY + dy).toInt().coerceAtLeast(0)
                         runCatching { windowManager.updateViewLayout(v, params) }
                     }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (dragging) prefs.edit().putInt(KEY_Y, params.y).apply() else onTap()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    orb.squeezed = false
+                    if (dragging) {
+                        prefs.edit().putInt(KEY_Y, params.y).apply()
+                    } else if (event.action == MotionEvent.ACTION_UP) {
+                        v.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        onTap()
+                    }
                     true
                 }
                 else -> false

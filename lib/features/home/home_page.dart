@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +8,10 @@ import 'package:pocketflow/dictation/models.dart';
 import 'package:pocketflow/features/home/state/home_notifiers.dart';
 import 'package:pocketflow/features/home/views/home_view.dart';
 import 'package:pocketflow/features/settings/state/settings_notifier.dart';
+import 'package:pocketflow/features/vocabulary/state/vocabulary_notifier.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
 import 'package:pocketflow/platform/desktop_dictation.dart';
+import 'package:pocketflow/platform/voice_level.dart';
 import 'package:pocketflow/router/router.dart';
 import 'package:pocketflow/ui/widgets/structure/view_shell.dart';
 
@@ -46,32 +50,61 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     final history = ref.watch(historyProvider);
     final android = ref.watch(androidStatusProvider).value;
     final desktop = ref.watch(desktopDictationProvider);
+    final activity = ref.watch(dictationActivityProvider);
+    final learned = ref.watch(vocabularyProvider).value?.terms.where((t) => t.source == TermSource.learned).length;
     final apiKey = ref.watch(settingsProvider).value?.apiKey ?? '';
     final bridge = ref.read(androidBridgeProvider);
     final statusNotifier = ref.read(androidStatusProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('PocketFlow')),
       body: history.when(
         loading: () => const ViewShell.loading(),
         error: (error, _) => ViewShell.error(message: error.toString(), onRetry: () => ref.invalidate(historyProvider)),
         data: (entries) => HomeView(
+          state: activity.state,
+          ready: activity.ready,
+          message: activity.message,
+          hint: desktop != null
+              ? 'Or hold Right ⌥ Option in any app. Release to insert.'
+              : 'Or use the bubble, the voice keyboard, the quick tile, or Caps Lock.',
+          level: ref.watch(voiceLevelProvider),
           setupSteps: _setupSteps(context, apiKey: apiKey, android: android, bridge: bridge, desktop: desktop),
+          stats: _stats(entries, learned ?? 0),
           history: entries,
-          android: android,
-          onArmedChanged: (value) => statusNotifier.setArmed(armed: value),
-          onWalkModeChanged: (value) => statusNotifier.setWalkMode(enabled: value),
-          onDictate: bridge.toggleDictation,
-          desktopHint: desktop == null
+          onOrbTap: () {
+            HapticFeedback.mediumImpact();
+            if (desktop != null) {
+              ref.read(desktopDictationProvider.notifier).toggle();
+            } else {
+              bridge.toggleDictation();
+            }
+          },
+          phone: android == null
               ? null
-              : desktop.message.isNotEmpty
-              ? desktop.message
-              : 'Hold Right ⌥ Option anywhere to dictate, release to insert. Or tap it to start and tap again to stop.',
+              : PhoneControls(
+                  armed: android.armed,
+                  walkMode: android.walkMode,
+                  headsetAvailable: android.bluetoothMicAvailable,
+                  onArmedChanged: (value) => statusNotifier.setArmed(armed: value),
+                  onWalkModeChanged: (value) => statusNotifier.setWalkMode(enabled: value),
+                ),
           onCopy: (entry) => _copy(context, entry),
           onDelete: (entry) => _confirmDelete(context, entry),
         ),
       ),
     );
+  }
+
+  /// Typing runs about 40 words a minute; whatever speaking took less than that is time saved.
+  HomeStats _stats(List<HistoryEntry> entries, int learned) {
+    var words = 0;
+    var spokenMillis = 0;
+    for (final entry in entries) {
+      words += entry.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      spokenMillis += entry.audioMillis ?? 0;
+    }
+    final saved = (words / 40 - spokenMillis / 60000).round();
+    return HomeStats(words: words, minutesSaved: saved < 0 ? 0 : saved, learned: learned);
   }
 
   List<SetupStep> _setupSteps(
@@ -129,7 +162,8 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
   Future<void> _copy(BuildContext context, HistoryEntry entry) async {
     await Clipboard.setData(ClipboardData(text: entry.text));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+    unawaited(HapticFeedback.selectionClick());
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
   }
 
   Future<void> _confirmDelete(BuildContext context, HistoryEntry entry) async {

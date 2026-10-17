@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Hosts the Flutter UI and answers its `pocketflow/app` calls about the native services. */
@@ -84,6 +85,17 @@ class MainActivity : FlutterActivity() {
                         DictationBus.status.collect { sink.success(mapOf("type" to "status")) }
                     },
                     scope.launch { DictationBus.events.collect(sink::success) },
+                    scope.launch {
+                        while (true) {
+                            val level = DictationService.levelSource
+                            if (level == null) {
+                                delay(250)
+                            } else {
+                                sink.success(mapOf("type" to "level", "value" to level().toDouble()))
+                                delay(50)
+                            }
+                        }
+                    },
                 )
             }
 

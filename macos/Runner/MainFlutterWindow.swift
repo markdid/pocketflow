@@ -31,6 +31,7 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
   private var monitors: [Any] = []
   private var hotkeyHeld = false
   private var statusItem: NSStatusItem?
+  private var levelTimer: Timer?
 
   init(messenger: FlutterBinaryMessenger, window: NSWindow) {
     channel = FlutterMethodChannel(name: "pocketflow/desktop", binaryMessenger: messenger)
@@ -127,6 +128,13 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
       recorder.record()
     else { return false }
     self.recorder = recorder
+    recorder.isMeteringEnabled = true
+    levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+      guard let recorder = self?.recorder else { return }
+      recorder.updateMeters()
+      let amplitude = pow(10, Double(recorder.averagePower(forChannel: 0)) / 20)
+      self?.sink?(["type": "level", "value": min(1, amplitude * 4)])
+    }
     NSSound(named: "Tink")?.play()
     return true
   }
@@ -135,6 +143,8 @@ final class DesktopBridge: NSObject, FlutterStreamHandler {
   private func stopRecording() -> Int {
     guard let recorder = recorder else { return 0 }
     let millis = Int(recorder.currentTime * 1000)
+    levelTimer?.invalidate()
+    levelTimer = nil
     recorder.stop()
     self.recorder = nil
     NSSound(named: "Pop")?.play()

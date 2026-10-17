@@ -36,7 +36,12 @@ final desktopDictationProvider = NotifierProvider<DesktopDictationNotifier, Desk
 /// frontmost app, and the field is watched briefly afterwards to learn from corrections. Null on other platforms.
 class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
   static const _channel = MethodChannel('pocketflow/desktop');
-  static const _events = EventChannel('pocketflow/desktop_events');
+
+  /// Hotkey and `level` (mic loudness, 0..1) events. Shared: an EventChannel supports only one native listener.
+  static final Stream<Map<Object?, Object?>> events = const EventChannel('pocketflow/desktop_events')
+      .receiveBroadcastStream()
+      .cast<Map<Object?, Object?>>()
+      .asBroadcastStream();
   static const _tapMillis = 300;
   static const _minAudioMillis = 400;
 
@@ -49,7 +54,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
   @override
   DesktopDictationState? build() {
     if (!Platform.isMacOS) return null;
-    final subscription = _events.receiveBroadcastStream().cast<Map<Object?, Object?>>().listen(_onEvent);
+    final subscription = events.listen(_onEvent);
     ref.onDispose(() {
       subscription.cancel();
       _watch?.cancel();
@@ -71,6 +76,19 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
   Future<void> requestMicrophone() async {
     await _channel.invokeMethod<bool>('requestMicrophone');
     await refreshPermissions();
+  }
+
+  /// Tap-to-talk from the window's orb: start (latched until the next tap) or finish.
+  Future<void> toggle() async {
+    switch (state?.state) {
+      case DictationState.listening:
+        await _stop();
+      case DictationState.transcribing || null:
+        return;
+      default:
+        _latched = true;
+        await _start();
+    }
   }
 
   void _onEvent(Map<Object?, Object?> event) {

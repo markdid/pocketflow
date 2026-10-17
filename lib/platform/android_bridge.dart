@@ -82,8 +82,14 @@ class AndroidBridge {
   static const _channel = MethodChannel('pocketflow/app');
   static const _events = EventChannel('pocketflow/events');
 
-  /// `status`, `history` (a dictation finished), and `learned` events from the native side.
-  Stream<Map<Object?, Object?>> events() => _events.receiveBroadcastStream().cast<Map<Object?, Object?>>();
+  /// `status`, `history` (a dictation finished), `learned`, and `level` (mic loudness, 0..1, ~20 Hz while listening)
+  /// events from the native side. Shared: an EventChannel supports only one native listener.
+  Stream<Map<Object?, Object?>> events() => _sharedEvents;
+
+  static final Stream<Map<Object?, Object?>> _sharedEvents = _events
+      .receiveBroadcastStream()
+      .cast<Map<Object?, Object?>>()
+      .asBroadcastStream();
 
   Future<AndroidStatus> status() async =>
       AndroidStatusMapper.fromMap(_stringKeys(await _channel.invokeMapMethod<Object?, Object?>('status')));

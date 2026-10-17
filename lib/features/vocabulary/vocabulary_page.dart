@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pocketflow/features/vocabulary/state/vocabulary_notifier.dart';
 import 'package:pocketflow/features/vocabulary/views/vocabulary_view.dart';
+import 'package:pocketflow/ui/theme/app_theme_data.dart';
 import 'package:pocketflow/ui/widgets/structure/view_shell.dart';
 
 class VocabularyPage extends ConsumerWidget {
@@ -13,12 +14,6 @@ class VocabularyPage extends ConsumerWidget {
     final notifier = ref.read(vocabularyProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vocabulary')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddSheet(context, notifier),
-        icon: const Icon(Icons.add),
-        label: const Text('Add'),
-      ),
       body: vocabulary.when(
         loading: () => const ViewShell.loading(),
         error: (error, _) =>
@@ -28,6 +23,7 @@ class VocabularyPage extends ConsumerWidget {
           child: VocabularyView(
             terms: data.terms,
             rules: data.rules,
+            onAdd: () => _showAddSheet(context, notifier),
             onRemoveTerm: notifier.removeTerm,
             onRemoveRule: notifier.removeRule,
           ),
@@ -78,11 +74,18 @@ class _AddSheetState extends State<_AddSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + MediaQuery.viewInsetsOf(context).bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Add a word', style: AppThemeData.serif(30)),
+          const SizedBox(height: 4),
+          Text(
+            'A name or term PocketFlow should always spell this way.',
+            style: AppThemeData.geist(14, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 20),
           TextField(
             controller: _term,
             autofocus: true,
@@ -98,8 +101,8 @@ class _AddSheetState extends State<_AddSheet> {
               helperText: 'Adds a replacement so this always gets fixed.',
             ),
           ),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: _save, child: const Text('Add')),
+          const SizedBox(height: 24),
+          FilledButton(onPressed: _save, child: const Text('Add word')),
         ],
       ),
     );

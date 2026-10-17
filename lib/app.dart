@@ -14,8 +14,8 @@ class App extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'PocketFlow',
-      theme: AppThemeData.light,
-      darkTheme: AppThemeData.dark,
+      theme: AppThemeData.dark,
+      themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
     );

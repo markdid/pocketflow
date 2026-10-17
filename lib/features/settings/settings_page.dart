@@ -13,7 +13,6 @@ class SettingsPage extends ConsumerWidget {
     final notifier = ref.read(settingsProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
       body: settings.when(
         loading: () => const ViewShell.loading(),
         error: (error, _) =>

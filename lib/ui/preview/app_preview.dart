@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:pocketflow/ui/theme/app_theme_data.dart';
 
-/// Light + dark previews wrapped in the app theme. Run with `make preview`.
+/// Previews wrapped in the app theme. Run with `make preview`.
 ///
 /// ```dart
 /// @AppPreview(group: 'Home')
@@ -19,15 +19,11 @@ final class AppPreview extends MultiPreview {
   final Size? size;
 
   @override
+  // The brand is dark-only, so one variant.
   List<Preview> get previews => [
-    Preview(group: group, name: _label('Light'), size: size, brightness: Brightness.light, wrapper: lightThemeWrapper),
-    Preview(group: group, name: _label('Dark'), size: size, brightness: Brightness.dark, wrapper: darkThemeWrapper),
+    Preview(group: group, name: name ?? 'Default', size: size, brightness: Brightness.dark, wrapper: darkThemeWrapper),
   ];
-
-  String _label(String variant) => name == null ? variant : '$name · $variant';
 }
-
-Widget lightThemeWrapper(Widget child) => _ThemedPreview(theme: AppThemeData.light, child: child);
 
 Widget darkThemeWrapper(Widget child) => _ThemedPreview(theme: AppThemeData.dark, child: child);
 
@@ -42,7 +38,7 @@ class _ThemedPreview extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: theme,
-      home: Scaffold(body: child),
+      home: Scaffold(backgroundColor: AppColors.ink, body: child),
     );
   }
 }

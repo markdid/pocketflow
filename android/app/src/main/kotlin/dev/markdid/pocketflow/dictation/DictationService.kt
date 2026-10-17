@@ -156,6 +156,7 @@ class DictationService : Service() {
             }
             recorder = capture
             audioFile = file
+            levelSource = capture::level
             vibrate(longArrayOf(0, 40))
             Log.i(TAG, "recording memo=$memo headset=$useHeadset app=$targetApp")
             setState(
@@ -208,6 +209,7 @@ class DictationService : Service() {
         val memo = recordingMemo
         recorder = null
         audioFile = null
+        levelSource = null
         silenceJob?.cancel()
         val durationMillis = capture.durationMillis
         capture.stop()
@@ -290,6 +292,7 @@ class DictationService : Service() {
     }
 
     private fun cancelRecording() {
+        levelSource = null
         silenceJob?.cancel()
         recorder?.stop()
         recorder = null
@@ -405,6 +408,11 @@ class DictationService : Service() {
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_MEMO_MS = 60 * 60 * 1000L
         private const val SPEECH_LEVEL = 0.08f
+
+        /** Loudness of the active recording (0..1), for the orb animations; null when not recording. */
+        @Volatile
+        var levelSource: (() -> Float)? = null
+            private set
 
         fun arm(context: Context) = send(context, null)
         fun disarm(context: Context) = send(context, ACTION_DISARM)
