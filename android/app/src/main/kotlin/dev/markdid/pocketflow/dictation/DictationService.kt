@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -135,6 +136,7 @@ class DictationService : Service() {
         targetApp = if (memo) null else TextDelivery.targetApp()
         if (!memo) TextDelivery.prepareForRemoteDesktop(this)
         setState(DictationState.listening, if (memo) "Recording memo…" else "Listening…")
+        scope.launch { runCatching { engine.warmUp() } }
 
         scope.launch {
             if (memo) {
@@ -212,7 +214,9 @@ class DictationService : Service() {
         levelSource = null
         silenceJob?.cancel()
         val durationMillis = capture.durationMillis
+        val releasedAt = SystemClock.elapsedRealtime()
         capture.stop()
+        val stopMillis = SystemClock.elapsedRealtime() - releasedAt
         bluetooth.deactivate()
         vibrate(longArrayOf(0, 25, 40, 25))
         if (memo) headset?.stopCue()
@@ -226,7 +230,9 @@ class DictationService : Service() {
         setState(DictationState.transcribing, if (memo) "Writing up your memo…" else "Writing…")
         scope.launch {
             try {
+                val processStarted = SystemClock.elapsedRealtime()
                 val result = engine.process(file.absolutePath, targetApp, memo, durationMillis)
+                val processMillis = SystemClock.elapsedRealtime() - processStarted
                 val error = result["error"] as? String
                 val saved = result["saved"] == true
                 val text = result["text"] as? String ?: ""
@@ -251,6 +257,11 @@ class DictationService : Service() {
                     memo -> finishMemo(text)
                     else -> finishDictation(text, result["warning"] as? String)
                 }
+                Log.i(
+                    TAG,
+                    "released → done in ${SystemClock.elapsedRealtime() - releasedAt} ms " +
+                        "(stop $stopMillis ms, pipeline $processMillis ms, then delivery)",
+                )
                 if (text.isNotEmpty() || saved) DictationBus.emit(mapOf("type" to "history"))
             } catch (t: Throwable) {
                 Log.e(TAG, "processing failed", t)

@@ -85,6 +85,8 @@ class HistoryEntry with HistoryEntryMappable {
     this.audioPath,
     this.audioMillis,
     this.processingMillis,
+    this.transcribeMillis,
+    this.cleanupMillis,
     this.error,
   });
 
@@ -101,6 +103,10 @@ class HistoryEntry with HistoryEntryMappable {
   final String? audioPath;
   final int? audioMillis;
   final int? processingMillis;
+
+  /// Time spent on each step, within [processingMillis]. [cleanupMillis] is null when cleanup was skipped.
+  final int? transcribeMillis;
+  final int? cleanupMillis;
 
   /// Why transcription failed. Set while the entry is waiting to be retried; [text] is empty until then.
   final String? error;

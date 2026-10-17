@@ -44,7 +44,8 @@ class WavAudioRecorder : AudioCapture {
             RandomAccessFile(outputFile, "rw").use { raf ->
                 raf.setLength(0)
                 writeWavHeader(raf, 0) // rewritten with the real length on stop
-                val pcm = ByteArray(bufferSize)
+                // Reads block until full, so small reads let stop() return within 50 ms of release.
+                val pcm = ByteArray(SAMPLE_RATE / 20 * 2)
                 recorder.startRecording()
                 try {
                     while (recording) {

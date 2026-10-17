@@ -128,6 +128,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
     }
     _audioPath = path;
     _setState(DictationState.listening, 'Listening…');
+    unawaited(ref.read(dictationPipelineProvider).warmUp());
   }
 
   Future<void> _cancel() async {
@@ -137,6 +138,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
   }
 
   Future<void> _stop() async {
+    final released = Stopwatch()..start();
     final millis = await _channel.invokeMethod<int>('stopRecording') ?? 0;
     final path = _audioPath;
     if (path == null || millis < _minAudioMillis) {
@@ -154,6 +156,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
         return;
       }
       await _channel.invokeMethod<void>('paste', {'text': result.text});
+      LoggerService.i('Released → pasted in ${released.elapsedMilliseconds} ms');
       _setState(DictationState.idle, result.warning ?? '');
       unawaited(ref.read(historyProvider.notifier).refresh());
       _watchForCorrections(result.text);

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 class ApiException implements Exception {
   ApiException(this.statusCode, this.body, {this.retryAfter});
@@ -40,13 +41,16 @@ class NetworkException implements Exception {
 }
 
 /// Minimal client for OpenAI-compatible transcription and chat endpoints (Groq, OpenAI, local servers).
+///
+/// Keep one instance around: it holds the connection open between dictations, and [warmUp] opens it while the user
+/// is still speaking, so neither the transcription nor the cleanup request pays for DNS, TCP, and TLS setup.
 class OpenAiClient {
   OpenAiClient({
     required this.baseUrl,
     required this.apiKey,
     http.Client? httpClient,
     this.retryDelays = const [Duration(seconds: 1), Duration(seconds: 3)],
-  }) : _http = httpClient ?? http.Client();
+  }) : _http = httpClient ?? IOClient(HttpClient()..idleTimeout = const Duration(minutes: 5));
 
   final String baseUrl;
   final String apiKey;
@@ -54,6 +58,17 @@ class OpenAiClient {
 
   /// Waits between transcription attempts after a dropped connection, rate limit, or server error.
   final List<Duration> retryDelays;
+
+  Future<void>? _warming;
+
+  /// Opens the connection ahead of the first real request. Failures are ignored; the real request reports them.
+  void warmUp() {
+    _warming ??= _http
+        .get(_uri('models'), headers: {'Authorization': 'Bearer $apiKey'})
+        .timeout(const Duration(seconds: 5))
+        .then<void>((_) {}, onError: (Object _) {})
+        .whenComplete(() => _warming = null);
+  }
 
   Uri _uri(String path) => Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/$path');
 
@@ -112,6 +127,8 @@ class OpenAiClient {
   static bool _isReasoningModel(String model) => model.contains('gpt-oss') || model.contains('qwen3');
 
   Future<http.Response> _send(Future<http.Response> Function() request, Duration timeout) async {
+    // Starting now would open a second connection next to the one being warmed up.
+    await _warming;
     try {
       return await request().timeout(timeout);
     } on TimeoutException catch (e) {

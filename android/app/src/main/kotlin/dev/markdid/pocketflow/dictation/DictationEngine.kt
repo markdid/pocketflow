@@ -49,6 +49,11 @@ class DictationEngine(context: Context) {
         return invoke("process", args) as? Map<*, *> ?: emptyMap<String, Any>()
     }
 
+    /** Opens the API connection while the user is still speaking. */
+    suspend fun warmUp() {
+        invoke("warmUp", null)
+    }
+
     /** Returns what was learned, as maps with `heard`, `term`, and `addedRule`. */
     suspend fun learn(inserted: String, fieldText: String): List<Map<*, *>> =
         (invoke("learn", mapOf("inserted" to inserted, "fieldText" to fieldText)) as? List<*>)

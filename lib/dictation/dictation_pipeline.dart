@@ -13,13 +13,15 @@ import 'package:pocketflow/dictation/vocabulary.dart';
 import 'package:pocketflow/dictation/wav_splitter.dart';
 import 'package:pocketflow/services/logging_service.dart';
 
-final dictationPipelineProvider = Provider<DictationPipeline>(
-  (ref) => DictationPipeline(
+final dictationPipelineProvider = Provider<DictationPipeline>((ref) {
+  final pipeline = DictationPipeline(
     settings: ref.watch(settingsRepositoryProvider),
     vocabulary: ref.watch(vocabularyRepositoryProvider),
     history: ref.watch(historyRepositoryProvider),
-  ),
-);
+  );
+  ref.onDispose(pipeline.close);
+  return pipeline;
+});
 
 class MissingApiKeyException implements Exception {
   @override
@@ -63,6 +65,21 @@ class DictationPipeline {
   final VocabularyRepository _vocabulary;
   final HistoryRepository _history;
   final OpenAiClient Function(String baseUrl, String apiKey) _clientFactory;
+  OpenAiClient? _cachedClient;
+
+  /// Call when recording starts, so the connection is open by the time the audio is ready.
+  Future<void> warmUp() async {
+    try {
+      (await _client(await _settings.load())).warmUp();
+    } on Exception catch (e) {
+      LoggerService.w('Warm-up skipped', e);
+    }
+  }
+
+  void close() {
+    _cachedClient?.close();
+    _cachedClient = null;
+  }
 
   /// Throws [TranscriptionSavedException] when transcription fails and the recording was kept for [retry].
   Future<DictationResult> process({
@@ -95,7 +112,7 @@ class DictationPipeline {
       await _history.save(saved);
       throw TranscriptionSavedException(e, saved);
     }
-    return _finish(settings, entry, raw, audio, timer);
+    return _finish(settings, entry.copyWith(transcribeMillis: timer.elapsedMilliseconds), raw, audio, timer);
   }
 
   /// Transcribes a recording kept after a failed attempt and fills in its history entry. On failure the entry keeps
@@ -114,7 +131,13 @@ class DictationPipeline {
       await _history.save(entry.copyWith(error: e.toString()));
       rethrow;
     }
-    final result = await _finish(settings, entry.copyWith(error: null), raw, audio, timer);
+    final result = await _finish(
+      settings,
+      entry.copyWith(error: null, transcribeMillis: timer.elapsedMilliseconds),
+      raw,
+      audio,
+      timer,
+    );
     // Nothing was said after all.
     if (result.entry == null) await _history.remove(id);
     return result;
@@ -143,7 +166,6 @@ class DictationPipeline {
       }
       return texts.join(' ');
     } finally {
-      client.close();
       for (final piece in pieces ?? const <File>[]) {
         if (piece.existsSync()) await piece.delete();
       }
@@ -163,17 +185,17 @@ class DictationPipeline {
 
     String? warning;
     var text = corrected;
-    if (settings.cleanupEnabled) {
-      final client = await _client(settings);
+    int? cleanupMillis;
+    if (settings.cleanupEnabled && !_alreadyClean(settings, entry.style, corrected)) {
+      final cleanupStarted = timer.elapsedMilliseconds;
       try {
-        text = await _cleanUp(client, settings, entry.style, corrected, vocabulary.terms, entry.appId);
+        text = await _cleanUp(await _client(settings), settings, entry.style, corrected, vocabulary.terms, entry.appId);
       } on Exception catch (e) {
         LoggerService.w('Cleanup failed, using the raw transcript', e);
         warning = 'Cleanup failed, inserted the raw transcript.';
         text = corrected;
-      } finally {
-        client.close();
       }
+      cleanupMillis = timer.elapsedMilliseconds - cleanupStarted;
     }
     if (text.isEmpty) return const DictationResult(text: '', entry: null);
 
@@ -184,13 +206,23 @@ class DictationPipeline {
       rawText: raw,
       text: text,
       audioPath: memo ? kept ?? await _keepAudio(audio, entry.createdAt) : null,
+      cleanupMillis: cleanupMillis,
       processingMillis: timer.elapsedMilliseconds,
+    );
+    LoggerService.i(
+      'Dictation took ${finished.processingMillis} ms: transcribe ${finished.transcribeMillis} ms, '
+      'cleanup ${cleanupMillis == null ? 'skipped' : '$cleanupMillis ms'}',
     );
     await _history.save(finished);
     // A retried dictation no longer needs its recording; memos keep theirs for replay.
     if (!memo && kept != null && File(kept).existsSync()) await File(kept).delete();
     return DictationResult(text: text, entry: finished, warning: warning);
   }
+
+  /// A short phrase Whisper already punctuated needs no cleanup, and skipping the call saves a round trip. Custom
+  /// instructions may apply even to short phrases, so they always go through the model.
+  static bool _alreadyClean(AppSettings settings, DictationStyle style, String transcript) =>
+      settings.customInstructions.trim().isEmpty && CleanupPrompt.isAlreadyClean(transcript, style);
 
   Future<String> _cleanUp(
     OpenAiClient client,
@@ -233,25 +265,23 @@ class DictationPipeline {
     if (candidates.isEmpty) return const [];
     LoggerService.i('Correction candidates: $candidates');
 
-    final client = await _client(settings);
-    try {
-      final reviewed = await CorrectionLearner.review(client, settings.cleanupModel, candidates);
-      final learned = <LearnedItem>[];
-      for (final r in reviewed) {
-        await _vocabulary.addTerm(r.term, source: TermSource.learned);
-        if (r.safeAsRule) await _vocabulary.addRule(r.candidate.heard, r.term, source: TermSource.learned);
-        learned.add(LearnedItem(heard: r.candidate.heard, term: r.term, addedRule: r.safeAsRule));
-      }
-      return learned;
-    } finally {
-      client.close();
+    final reviewed = await CorrectionLearner.review(await _client(settings), settings.cleanupModel, candidates);
+    final learned = <LearnedItem>[];
+    for (final r in reviewed) {
+      await _vocabulary.addTerm(r.term, source: TermSource.learned);
+      if (r.safeAsRule) await _vocabulary.addRule(r.candidate.heard, r.term, source: TermSource.learned);
+      learned.add(LearnedItem(heard: r.candidate.heard, term: r.term, addedRule: r.safeAsRule));
     }
+    return learned;
   }
 
   Future<OpenAiClient> _client(AppSettings settings) async {
     final key = await _settings.apiKey();
     if (key.isEmpty) throw MissingApiKeyException();
-    return _clientFactory(settings.apiBaseUrl, key);
+    final cached = _cachedClient;
+    if (cached != null && cached.baseUrl == settings.apiBaseUrl && cached.apiKey == key) return cached;
+    cached?.close();
+    return _cachedClient = _clientFactory(settings.apiBaseUrl, key);
   }
 
   Future<String> _keepAudio(File audio, DateTime started) async {

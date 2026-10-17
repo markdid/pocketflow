@@ -34,6 +34,9 @@ Future<void> runDictationEngine() async {
           LoggerService.e('Dictation failed', e, stack);
           return {'error': e.toString()};
         }
+      case 'warmUp':
+        await pipeline.warmUp();
+        return null;
       case 'learn':
         try {
           final learned = await pipeline.learnFromEdit(

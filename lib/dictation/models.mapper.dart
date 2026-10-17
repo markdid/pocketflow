@@ -706,6 +706,18 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
     _$processingMillis,
     opt: true,
   );
+  static int? _$transcribeMillis(HistoryEntry v) => v.transcribeMillis;
+  static const Field<HistoryEntry, int> _f$transcribeMillis = Field(
+    'transcribeMillis',
+    _$transcribeMillis,
+    opt: true,
+  );
+  static int? _$cleanupMillis(HistoryEntry v) => v.cleanupMillis;
+  static const Field<HistoryEntry, int> _f$cleanupMillis = Field(
+    'cleanupMillis',
+    _$cleanupMillis,
+    opt: true,
+  );
   static String? _$error(HistoryEntry v) => v.error;
   static const Field<HistoryEntry, String> _f$error = Field(
     'error',
@@ -725,6 +737,8 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
     #audioPath: _f$audioPath,
     #audioMillis: _f$audioMillis,
     #processingMillis: _f$processingMillis,
+    #transcribeMillis: _f$transcribeMillis,
+    #cleanupMillis: _f$cleanupMillis,
     #error: _f$error,
   };
 
@@ -740,6 +754,8 @@ class HistoryEntryMapper extends ClassMapperBase<HistoryEntry> {
       audioPath: data.dec(_f$audioPath),
       audioMillis: data.dec(_f$audioMillis),
       processingMillis: data.dec(_f$processingMillis),
+      transcribeMillis: data.dec(_f$transcribeMillis),
+      cleanupMillis: data.dec(_f$cleanupMillis),
       error: data.dec(_f$error),
     );
   }
@@ -817,6 +833,8 @@ abstract class HistoryEntryCopyWith<$R, $In extends HistoryEntry, $Out>
     String? audioPath,
     int? audioMillis,
     int? processingMillis,
+    int? transcribeMillis,
+    int? cleanupMillis,
     String? error,
   });
   HistoryEntryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
@@ -842,6 +860,8 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
     Object? audioPath = $none,
     Object? audioMillis = $none,
     Object? processingMillis = $none,
+    Object? transcribeMillis = $none,
+    Object? cleanupMillis = $none,
     Object? error = $none,
   }) => $apply(
     FieldCopyWithData({
@@ -855,6 +875,8 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
       if (audioPath != $none) #audioPath: audioPath,
       if (audioMillis != $none) #audioMillis: audioMillis,
       if (processingMillis != $none) #processingMillis: processingMillis,
+      if (transcribeMillis != $none) #transcribeMillis: transcribeMillis,
+      if (cleanupMillis != $none) #cleanupMillis: cleanupMillis,
       if (error != $none) #error: error,
     }),
   );
@@ -870,6 +892,8 @@ class _HistoryEntryCopyWithImpl<$R, $Out>
     audioPath: data.get(#audioPath, or: $value.audioPath),
     audioMillis: data.get(#audioMillis, or: $value.audioMillis),
     processingMillis: data.get(#processingMillis, or: $value.processingMillis),
+    transcribeMillis: data.get(#transcribeMillis, or: $value.transcribeMillis),
+    cleanupMillis: data.get(#cleanupMillis, or: $value.cleanupMillis),
     error: data.get(#error, or: $value.error),
   );
 

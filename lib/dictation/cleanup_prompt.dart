@@ -28,6 +28,40 @@ class CleanupPrompt {
     return buffer.toString();
   }
 
+  /// Up to this many words, a transcript with nothing for the model to fix skips cleanup.
+  static const quickWordLimit = 6;
+
+  /// True for a short phrase Whisper already capitalized and punctuated, with no filler, self-correction, spoken
+  /// punctuation, number words, or repeats. On real dictations the model returned these unchanged.
+  static bool isAlreadyClean(String transcript, DictationStyle style) {
+    // Code needs spoken symbols converted; memos need paragraphs.
+    if (style == DictationStyle.code || style == DictationStyle.memo) return false;
+    final text = transcript.trim();
+    if (text.isEmpty) return false;
+    final first = String.fromCharCode(text.runes.first);
+    if (first != first.toUpperCase()) return false;
+    final words = [for (final m in _word.allMatches(text.toLowerCase())) m.group(0)!];
+    if (words.isEmpty || words.length > quickWordLimit) return false;
+    // A repeated word is usually a stutter or a restart ("The board. The board.").
+    return words.toSet().length == words.length && !words.any(_needsModel.contains);
+  }
+
+  static final _word = RegExp(r"[\p{L}\p{N}']+", unicode: true);
+
+  static const _needsModel = {
+    // Filler and self-corrections.
+    'um', 'umm', 'uh', 'uhm', 'er', 'erm', 'ah', 'hmm', 'mm', 'like', 'actually', 'sorry', 'wait', 'scratch',
+    'mean', 'know',
+    // Spoken punctuation and layout.
+    'comma', 'period', 'stop', 'question', 'exclamation', 'colon', 'semicolon', 'dash', 'hyphen', 'quote',
+    'unquote', 'bracket', 'parenthesis', 'underscore', 'slash', 'dot', 'line', 'paragraph', 'bullet', 'hashtag',
+    // Numbers, dates, and times to write in standard form.
+    'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+    'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty',
+    'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred', 'thousand', 'million', 'billion', 'half', 'quarter',
+    'dollars', 'percent', "o'clock",
+  };
+
   /// A cleanup that is far longer than what was said means the model answered the dictation instead of cleaning it.
   static bool looksLikeAnAnswer(String raw, String cleaned) => cleaned.length > raw.length * 2 + 120;
 
