@@ -167,6 +167,13 @@ class AppSettingsMapper extends ClassMapperBase<AppSettings> {
   static Map<String, DictationStyle> _$appStyles(AppSettings v) => v.appStyles;
   static const Field<AppSettings, Map<String, DictationStyle>> _f$appStyles =
       Field('appStyles', _$appStyles, opt: true, def: const {});
+  static bool _$keepRecordings(AppSettings v) => v.keepRecordings;
+  static const Field<AppSettings, bool> _f$keepRecordings = Field(
+    'keepRecordings',
+    _$keepRecordings,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<AppSettings> fields = const {
@@ -178,6 +185,7 @@ class AppSettingsMapper extends ClassMapperBase<AppSettings> {
     #learnFromCorrections: _f$learnFromCorrections,
     #customInstructions: _f$customInstructions,
     #appStyles: _f$appStyles,
+    #keepRecordings: _f$keepRecordings,
   };
 
   static AppSettings _instantiate(DecodingData data) {
@@ -190,6 +198,7 @@ class AppSettingsMapper extends ClassMapperBase<AppSettings> {
       learnFromCorrections: data.dec(_f$learnFromCorrections),
       customInstructions: data.dec(_f$customInstructions),
       appStyles: data.dec(_f$appStyles),
+      keepRecordings: data.dec(_f$keepRecordings),
     );
   }
 
@@ -269,6 +278,7 @@ abstract class AppSettingsCopyWith<$R, $In extends AppSettings, $Out>
     bool? learnFromCorrections,
     String? customInstructions,
     Map<String, DictationStyle>? appStyles,
+    bool? keepRecordings,
   });
   AppSettingsCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -303,6 +313,7 @@ class _AppSettingsCopyWithImpl<$R, $Out>
     bool? learnFromCorrections,
     String? customInstructions,
     Map<String, DictationStyle>? appStyles,
+    bool? keepRecordings,
   }) => $apply(
     FieldCopyWithData({
       if (apiBaseUrl != null) #apiBaseUrl: apiBaseUrl,
@@ -314,6 +325,7 @@ class _AppSettingsCopyWithImpl<$R, $Out>
         #learnFromCorrections: learnFromCorrections,
       if (customInstructions != null) #customInstructions: customInstructions,
       if (appStyles != null) #appStyles: appStyles,
+      if (keepRecordings != null) #keepRecordings: keepRecordings,
     }),
   );
   @override
@@ -335,6 +347,7 @@ class _AppSettingsCopyWithImpl<$R, $Out>
       or: $value.customInstructions,
     ),
     appStyles: data.get(#appStyles, or: $value.appStyles),
+    keepRecordings: data.get(#keepRecordings, or: $value.keepRecordings),
   );
 
   @override

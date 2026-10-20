@@ -18,6 +18,7 @@ class AppSettings with AppSettingsMappable {
     this.learnFromCorrections = true,
     this.customInstructions = '',
     this.appStyles = const {},
+    this.keepRecordings = false,
   });
 
   /// Any OpenAI-compatible API. Groq by default (free tier, fast Whisper).
@@ -35,6 +36,9 @@ class AppSettings with AppSettingsMappable {
 
   /// User overrides of the built-in app → style mapping, keyed by Android package or macOS bundle id.
   final Map<String, DictationStyle> appStyles;
+
+  /// Keep every dictation's audio, not only memos and failed recordings, to debug what the mic actually heard.
+  final bool keepRecordings;
 }
 
 @MappableEnum()
@@ -99,7 +103,7 @@ class HistoryEntry with HistoryEntryMappable {
   final String? appId;
 
   /// Kept for memos so a recording can be re-transcribed, and for any recording whose transcription failed.
-  /// Dictation audio is otherwise deleted after processing.
+  /// Dictation audio is otherwise deleted after processing, unless [AppSettings.keepRecordings] is on.
   final String? audioPath;
   final int? audioMillis;
   final int? processingMillis;

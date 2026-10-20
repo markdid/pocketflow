@@ -187,12 +187,12 @@ class DictationPipeline {
     if (text.isEmpty) return const DictationResult(text: '', entry: null);
 
     await _vocabulary.recordHits(Vocabulary.termsUsedIn(text, vocabulary.terms).map((t) => t.term));
-    final memo = entry.mode == DictationMode.memo;
+    final keep = entry.mode == DictationMode.memo || settings.keepRecordings;
     final kept = entry.audioPath;
     final finished = entry.copyWith(
       rawText: raw,
       text: text,
-      audioPath: memo ? kept ?? await _keepAudio(audio, entry.createdAt) : null,
+      audioPath: keep ? kept ?? await _keepAudio(audio, entry.createdAt) : null,
       cleanupMillis: cleanupMillis,
       processingMillis: timer.elapsedMilliseconds,
     );
@@ -202,7 +202,7 @@ class DictationPipeline {
     );
     await _history.save(finished);
     // A retried dictation no longer needs its recording; memos keep theirs for replay.
-    if (!memo && kept != null && File(kept).existsSync()) await File(kept).delete();
+    if (!keep && kept != null && File(kept).existsSync()) await File(kept).delete();
     return DictationResult(text: text, entry: finished, warning: warning);
   }
 

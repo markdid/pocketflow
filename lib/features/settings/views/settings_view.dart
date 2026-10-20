@@ -173,12 +173,22 @@ class SettingsView extends StatelessWidget {
         const _Section('Advanced'),
         SurfaceCard(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-          child: _CommitTextField(
-            label: 'API base URL',
-            helper: 'Any OpenAI-compatible API. Default: $groqBaseUrl',
-            value: settings.apiBaseUrl,
-            onCommit: (value) =>
-                onSettingsChanged(settings.copyWith(apiBaseUrl: value.trim().isEmpty ? groqBaseUrl : value.trim())),
+          child: Column(
+            children: [
+              _CommitTextField(
+                label: 'API base URL',
+                helper: 'Any OpenAI-compatible API. Default: $groqBaseUrl',
+                value: settings.apiBaseUrl,
+                onCommit: (value) =>
+                    onSettingsChanged(settings.copyWith(apiBaseUrl: value.trim().isEmpty ? groqBaseUrl : value.trim())),
+              ),
+              _SwitchRow(
+                title: 'Keep recordings',
+                subtitle: 'Saves the audio of every dictation, not just memos, to debug what the mic heard.',
+                value: settings.keepRecordings,
+                onChanged: (value) => onSettingsChanged(settings.copyWith(keepRecordings: value)),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 28),
