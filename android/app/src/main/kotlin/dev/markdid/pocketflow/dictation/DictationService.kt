@@ -57,6 +57,10 @@ class DictationService : Service() {
     private var targetApp: String? = null
     private var silenceJob: Job? = null
 
+    /** Whether the active recording comes from a Bluetooth headset, and how often it was checked and had sound. */
+    private var throughHeadset = false
+    private var polledWithSound = 0
+
     /** Stop pressed while the headset link was still opening (a quick hold-to-talk release). */
     private var stopRequested = false
 
@@ -158,6 +162,8 @@ class DictationService : Service() {
             }
             recorder = capture
             audioFile = file
+            throughHeadset = useHeadset
+            polledWithSound = 0
             levelSource = capture::level
             vibrate(longArrayOf(0, 40))
             Log.i(TAG, "recording memo=$memo headset=$useHeadset app=$targetApp")
@@ -188,8 +194,10 @@ class DictationService : Service() {
             while (isActive && recorder === capture) {
                 delay(200)
                 if (capture.durationMillis > MAX_RECORDING_MS) break
+                val level = capture.level()
+                if (level > SOUND_LEVEL) polledWithSound++
                 if (stopAfter <= 0) continue
-                val loud = capture.level() > SPEECH_LEVEL
+                val loud = level > SPEECH_LEVEL
                 val now = System.currentTimeMillis()
                 when {
                     loud -> {
@@ -227,6 +235,18 @@ class DictationService : Service() {
         if (durationMillis < MIN_AUDIO_MS) {
             file.delete()
             setState(DictationState.idle, "")
+            return
+        }
+        // Some headsets (e.g. glasses whose mic only works through their own app) open the call-audio link but send
+        // silence, and Whisper invents words for silence. Two checks with sound rule out a single click.
+        if (throughHeadset && polledWithSound < 2) {
+            Log.w(TAG, "headset sent no sound for $durationMillis ms")
+            file.delete()
+            setState(
+                DictationState.error,
+                "Your headset’s mic sent no sound. Try another headset, or turn off “Use my headset’s mic” in Settings.",
+            )
+            if (memo) headset?.say("Your headset's mic isn't sending any sound.")
             return
         }
 
@@ -433,6 +453,9 @@ class DictationService : Service() {
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_RECORDING_MS = 60 * 60 * 1000L
         private const val SPEECH_LEVEL = 0.08f
+
+        /** Well under speech, well over a headset link that carries silence (about -80 dBFS). */
+        private const val SOUND_LEVEL = 0.01f
 
         /** Loudness of the active recording (0..1), for the orb animations; null when not recording. */
         @Volatile

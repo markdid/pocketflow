@@ -38,13 +38,23 @@ class DictationEngine(context: Context) {
         )
     }
 
-    /** Returns `text` (empty if nothing was said), and optionally `warning` or `error`. */
-    suspend fun process(path: String, appId: String?, memo: Boolean, audioMillis: Long): Map<*, *> {
+    /**
+     * Returns `text` (empty if nothing was said), and optionally `warning` or `error`. [voiceCommand] drops a leading
+     * "take a note" or similar from the transcript.
+     */
+    suspend fun process(
+        path: String,
+        appId: String?,
+        memo: Boolean,
+        audioMillis: Long,
+        voiceCommand: Boolean = false,
+    ): Map<*, *> {
         val args = mapOf(
             "path" to path,
             "appId" to appId,
             "mode" to if (memo) "memo" else "dictation",
             "audioMillis" to audioMillis.toInt(),
+            "voiceCommand" to voiceCommand,
         )
         return invoke("process", args) as? Map<*, *> ?: emptyMap<String, Any>()
     }

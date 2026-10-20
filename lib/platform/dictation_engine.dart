@@ -26,6 +26,7 @@ Future<void> runDictationEngine() async {
             mode: args['mode'] == 'memo' ? DictationMode.memo : DictationMode.dictation,
             appId: args['appId'] as String?,
             audioMillis: args['audioMillis'] as int?,
+            voiceCommand: args['voiceCommand'] == true,
           );
           return {'text': result.text, 'warning': result.warning, 'historyId': result.entry?.id};
         } on TranscriptionSavedException catch (e) {

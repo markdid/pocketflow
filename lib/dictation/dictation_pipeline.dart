@@ -81,11 +81,13 @@ class DictationPipeline {
   }
 
   /// Throws [TranscriptionSavedException] when transcription fails and the recording was kept for [retry].
+  /// [voiceCommand] means the recording starts with a spoken "take a note" (from the glasses), which is dropped.
   Future<DictationResult> process({
     required File audio,
     DictationMode mode = DictationMode.dictation,
     String? appId,
     int? audioMillis,
+    bool voiceCommand = false,
   }) async {
     final timer = Stopwatch()..start();
     final started = DateTime.now();
@@ -104,7 +106,8 @@ class DictationPipeline {
     );
     final String raw;
     try {
-      raw = await _transcribe(settings, audio);
+      final heard = await _transcribe(settings, audio);
+      raw = voiceCommand ? dropNoteCommand(heard) : heard;
     } on Exception catch (e) {
       LoggerService.w('Transcription failed, keeping the recording to retry', e);
       final saved = entry.copyWith(audioPath: await _keepAudio(audio, started), error: e.toString());
@@ -205,6 +208,19 @@ class DictationPipeline {
     if (!keep && kept != null && File(kept).existsSync()) await File(kept).delete();
     return DictationResult(text: text, entry: finished, warning: warning);
   }
+
+  /// "Take a note, call Sinead." → "Call Sinead." Matches the phrases Lumon listens for to route a note here.
+  static String dropNoteCommand(String transcript) {
+    final match = _noteCommand.firstMatch(transcript);
+    if (match == null) return transcript;
+    final rest = transcript.substring(match.end).trim();
+    return rest.isEmpty ? '' : rest[0].toUpperCase() + rest.substring(1);
+  }
+
+  static final _noteCommand = RegExp(
+    r'^\s*(?:(?:please\s+)?(?:take|make)\s+a\s+note|note\s+to\s+self|note|remember(?:\s+that)?)\b[\s,:.-]*',
+    caseSensitive: false,
+  );
 
   /// A short phrase Whisper already punctuated needs no cleanup, and skipping the call saves a round trip. Custom
   /// instructions may apply even to short phrases, so they always go through the model.
