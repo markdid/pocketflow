@@ -53,7 +53,7 @@ Optional: `tools/pocketflow-keyinject.sh` relays real Cmd shortcuts through Rust
 
 ## Privacy
 
-- Audio goes only to the API you configure, and is deleted after transcription. Memo recordings stay on your device until you delete them.
+- Audio goes only to the API you configure, and is deleted after transcription. Memo recordings, and recordings that failed to transcribe (so you can try again), stay on your device until you delete them. Turn on **Keep recordings** in Settings to keep every dictation's audio too.
 - Your API key is stored in the Android Keystore or the macOS keychain.
 - After inserting text, PocketFlow watches that field for up to a minute so it can learn from corrections. Only the changed words, with a few words of context, are sent for review. Password fields are skipped.
 - History, vocabulary, and settings are local JSON files in the app's private storage.
@@ -84,3 +84,7 @@ See `AGENTS.md` and `docs/new-feature-guidelines.md` for the project conventions
 ## Credits
 
 The correction-learning diff, prompt budget, and cleanup prompts draw on [OpenWhispr](https://github.com/OpenWhispr/openwhispr) and [FreeFlow](https://github.com/zachlatta/freeflow), both MIT licensed. See `NOTICE`.
+
+## License
+
+MIT. See `LICENSE`.

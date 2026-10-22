@@ -11,4 +11,4 @@ PRODUCT_NAME = PocketFlow
 PRODUCT_BUNDLE_IDENTIFIER = dev.markdid.pocketflow
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 The PocketFlow contributors. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 The PocketFlow contributors. MIT License.
