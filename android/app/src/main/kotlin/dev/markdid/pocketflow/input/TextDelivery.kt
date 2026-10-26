@@ -1,13 +1,16 @@
 package dev.markdid.pocketflow.input
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.inputmethod.InputMethodManager
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.accessibility.PocketFlowAccessibilityService
 import dev.markdid.pocketflow.ime.PocketFlowImeService
@@ -50,10 +53,12 @@ object TextDelivery {
      */
     private fun deliverToRemoteDesktop(context: Context, text: String): Result {
         PocketFlowAccessibilityService.clearSoftKeyboardOverride()
+        var switchFailed = false
         if (currentIme(context) != OUR_IME) {
             if (switchIme(context, OUR_IME)) {
                 SystemClock.sleep(250)
             } else {
+                switchFailed = true
                 Log.w(TAG, "IME switch failed (needs WRITE_SECURE_SETTINGS)")
             }
         }
@@ -63,8 +68,20 @@ object TextDelivery {
             Handler(Looper.getMainLooper()).postDelayed({ clearClipboard(context) }, 400)
             return Result(Method.KEY_EVENTS)
         }
-        return Result(Method.NONE, "Couldn't type into the remote desktop. Click its text field, then dictate again.")
+        val message = when {
+            !isOurImeEnabled(context) -> "PocketFlow keyboard is off. Turn it on in Android keyboard settings."
+            switchFailed && !canSwitchIme(context) -> "Keyboard switching isn't granted. Run the README's adb grant."
+            else -> "Couldn't type into the remote desktop. Click its text field, then dictate again."
+        }
+        return Result(Method.NONE, message)
     }
+
+    private fun isOurImeEnabled(context: Context): Boolean =
+        context.getSystemService(InputMethodManager::class.java).enabledInputMethodList
+            .any { it.packageName == context.packageName }
+
+    private fun canSwitchIme(context: Context): Boolean =
+        context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
 
     /** Pre-selects the PocketFlow keyboard while a remote desktop is open so typing starts instantly. */
     fun prepareForRemoteDesktop(context: Context) {
