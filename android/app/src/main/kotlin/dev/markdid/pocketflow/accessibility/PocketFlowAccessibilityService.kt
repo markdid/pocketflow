@@ -2,6 +2,7 @@ package dev.markdid.pocketflow.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -49,7 +50,8 @@ class PocketFlowAccessibilityService : AccessibilityService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val hardwareKeyboard = hasHardwareKeyboard(newConfig)
-        // The hardware keyboard went away: the next tap on a field should bring up the usual on-screen keyboard.
+        // Hardware keyboard on: PocketFlow's keyboard for remote typing. Off: the usual on-screen keyboard again.
+        if (!hadHardwareKeyboard && hardwareKeyboard) TextDelivery.onHardwareKeyboardConnected(this)
         if (hadHardwareKeyboard && !hardwareKeyboard) TextDelivery.restoreKeyboard(this)
         hadHardwareKeyboard = hardwareKeyboard
     }
@@ -286,6 +288,13 @@ class PocketFlowAccessibilityService : AccessibilityService() {
 
         fun clearSoftKeyboardOverride() {
             instance?.softKeyboardController?.showMode = SHOW_MODE_AUTO
+        }
+
+        /** Switches keyboards the way the system picker does, so the new one binds to the focused field right away. */
+        fun switchKeyboard(imeId: String): Boolean {
+            val service = instance ?: return false
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+            return service.softKeyboardController.switchToInputMethod(imeId)
         }
 
         /** Starts watching the field we just typed into. [onFinished] gets the inserted and final text. */

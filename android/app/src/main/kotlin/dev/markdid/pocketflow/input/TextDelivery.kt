@@ -89,6 +89,15 @@ object TextDelivery {
         if (isRemoteTarget() && currentIme(context) != OUR_IME) switchToOurIme(context)
     }
 
+    /**
+     * Selects the PocketFlow keyboard as soon as a hardware keyboard connects. Switching once a remote desktop already
+     * has focus doesn't work: RustDesk doesn't reconnect to the new keyboard until its window is focused again.
+     */
+    fun onHardwareKeyboardConnected(context: Context) {
+        if (!PocketFlowApp.instance.settings.remoteDesktopTyping || currentIme(context) == OUR_IME) return
+        if (switchToOurIme(context)) Log.i(TAG, "hardware keyboard connected, switched to PocketFlow keyboard")
+    }
+
     /** Switches back to the keyboard remote typing replaced, so tapping a field brings up the usual one again. */
     fun restoreKeyboard(context: Context) {
         val settings = PocketFlowApp.instance.settings
@@ -119,10 +128,15 @@ object TextDelivery {
     private fun currentIme(context: Context): String =
         Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty()
 
-    /** Needs `adb shell pm grant dev.markdid.pocketflow android.permission.WRITE_SECURE_SETTINGS`. */
-    private fun switchIme(context: Context, imeId: String): Boolean = runCatching {
-        Settings.Secure.putString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD, imeId)
-    }.getOrDefault(false)
+    /**
+     * Prefers the accessibility service's switch: writing the setting alone can leave the new keyboard unbound from
+     * the field that's already focused. The fallback needs
+     * `adb shell pm grant dev.markdid.pocketflow android.permission.WRITE_SECURE_SETTINGS`.
+     */
+    private fun switchIme(context: Context, imeId: String): Boolean =
+        PocketFlowAccessibilityService.switchKeyboard(imeId) || runCatching {
+            Settings.Secure.putString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD, imeId)
+        }.getOrDefault(false)
 
     fun isRemoteDesktop(pkg: String): Boolean {
         val p = pkg.lowercase()

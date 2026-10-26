@@ -69,6 +69,7 @@ class PocketFlowImeService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         lastConnection = currentInputConnection
         editorPackage = attribute?.packageName
+        Log.i(TAG, "onStartInput pkg=$editorPackage restarting=$restarting")
     }
 
     override fun onFinishInput() {
