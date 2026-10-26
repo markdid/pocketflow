@@ -42,11 +42,21 @@ class PocketFlowAccessibilityService : AccessibilityService() {
     private var ctrlDown = false
     private var swallowedShift = false
     private var swallowedAlt = false
+    private var hadHardwareKeyboard = false
 
     private val refreshBubble = Runnable { updateBubble() }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val hardwareKeyboard = hasHardwareKeyboard(newConfig)
+        // The hardware keyboard went away: the next tap on a field should bring up the usual on-screen keyboard.
+        if (hadHardwareKeyboard && !hardwareKeyboard) TextDelivery.restoreKeyboard(this)
+        hadHardwareKeyboard = hardwareKeyboard
+    }
+
     override fun onServiceConnected() {
         instance = this
+        hadHardwareKeyboard = hasHardwareKeyboard(resources.configuration)
         bubble = MicBubble(this) { DictationService.toggle(this) }
         // Never leave SHOW_MODE_HIDDEN stuck: it blocks keyboard binding into RustDesk and breaks typing.
         softKeyboardController.showMode = SHOW_MODE_AUTO
@@ -109,14 +119,13 @@ class PocketFlowAccessibilityService : AccessibilityService() {
      * should go away with the keyboard. With a hardware keyboard there's no on-screen keyboard to wait for.
      */
     private fun keyboardVisible(): Boolean {
-        val config = resources.configuration
-        if (config.keyboard == Configuration.KEYBOARD_QWERTY &&
-            config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
-        ) {
-            return true
-        }
+        if (hasHardwareKeyboard(resources.configuration)) return true
         return runCatching { windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } }.getOrDefault(true)
     }
+
+    private fun hasHardwareKeyboard(config: Configuration) =
+        config.keyboard == Configuration.KEYBOARD_QWERTY &&
+            config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
 
     fun refreshBubbleState() {
         if (::bubble.isInitialized) bubble.render(DictationBus.status.value.state)

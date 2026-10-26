@@ -55,7 +55,7 @@ object TextDelivery {
         PocketFlowAccessibilityService.clearSoftKeyboardOverride()
         var switchFailed = false
         if (currentIme(context) != OUR_IME) {
-            if (switchIme(context, OUR_IME)) {
+            if (switchToOurIme(context)) {
                 SystemClock.sleep(250)
             } else {
                 switchFailed = true
@@ -63,6 +63,7 @@ object TextDelivery {
             }
         }
         SystemClock.sleep(100)
+        Log.i(TAG, "remote delivery: ime=${currentIme(context)} switchFailed=$switchFailed target=${targetApp()}")
         if (PocketFlowImeService.typeAsKeyEvents(text)) {
             clearClipboard(context)
             Handler(Looper.getMainLooper()).postDelayed({ clearClipboard(context) }, 400)
@@ -85,7 +86,24 @@ object TextDelivery {
 
     /** Pre-selects the PocketFlow keyboard while a remote desktop is open so typing starts instantly. */
     fun prepareForRemoteDesktop(context: Context) {
-        if (isRemoteTarget() && currentIme(context) != OUR_IME) switchIme(context, OUR_IME)
+        if (isRemoteTarget() && currentIme(context) != OUR_IME) switchToOurIme(context)
+    }
+
+    /** Switches back to the keyboard remote typing replaced, so tapping a field brings up the usual one again. */
+    fun restoreKeyboard(context: Context) {
+        val settings = PocketFlowApp.instance.settings
+        val previous = settings.keyboardBeforeRemote ?: return
+        settings.keyboardBeforeRemote = null
+        if (currentIme(context) == OUR_IME && switchIme(context, previous)) Log.i(TAG, "keyboard restored to $previous")
+    }
+
+    private fun switchToOurIme(context: Context): Boolean {
+        val previous = currentIme(context)
+        if (!switchIme(context, OUR_IME)) return false
+        if (previous.isNotEmpty() && previous != OUR_IME) {
+            PocketFlowApp.instance.settings.keyboardBeforeRemote = previous
+        }
+        return true
     }
 
     fun copyToClipboard(context: Context, text: String) {

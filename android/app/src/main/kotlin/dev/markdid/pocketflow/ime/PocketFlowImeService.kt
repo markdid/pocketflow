@@ -268,6 +268,7 @@ class PocketFlowImeService : InputMethodService() {
                 any = true
                 SystemClock.sleep(4)
             }
+            Log.i(TAG, "typeAsKeyEvents: sent ${text.length} chars to $editorPackage after ${tries * 40} ms")
             return any
         } finally {
             forceShowForTyping = false
@@ -311,7 +312,11 @@ class PocketFlowImeService : InputMethodService() {
             return ime.commitText(text)
         }
 
-        fun typeAsKeyEvents(text: String): Boolean = instance?.typeAsKeyEventsInternal(text) ?: false
+        fun typeAsKeyEvents(text: String): Boolean {
+            val ime = instance
+            if (ime == null) Log.w(TAG, "typeAsKeyEvents: keyboard service not running")
+            return ime?.typeAsKeyEventsInternal(text) ?: false
+        }
 
         fun pasteClipboardChord(): Boolean = instance?.pasteClipboardChordInternal() ?: false
 

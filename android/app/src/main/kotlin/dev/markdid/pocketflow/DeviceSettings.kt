@@ -36,6 +36,11 @@ class DeviceSettings(context: Context) {
         get() = prefs.getBoolean(KEY_WALK, false)
         set(value) = prefs.edit().putBoolean(KEY_WALK, value).apply()
 
+    /** The keyboard remote-desktop typing switched away from, to go back to once the hardware keyboard disconnects. */
+    var keyboardBeforeRemote: String?
+        get() = prefs.getString(KEY_KEYBOARD_BEFORE_REMOTE, null)
+        set(value) = prefs.edit().putString(KEY_KEYBOARD_BEFORE_REMOTE, value).apply()
+
     fun toMap(): Map<String, Any> = mapOf(
         "hotkeyMode" to hotkeyMode.name,
         "bluetoothMic" to bluetoothMic,
@@ -65,5 +70,6 @@ class DeviceSettings(context: Context) {
         const val KEY_WALK_STOP = "walk_auto_stop_seconds"
         const val KEY_ARMED = "armed"
         const val KEY_WALK = "walk_mode"
+        const val KEY_KEYBOARD_BEFORE_REMOTE = "keyboard_before_remote"
     }
 }
