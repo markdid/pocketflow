@@ -11,15 +11,12 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.google.android.gms.tasks.Tasks
-import com.google.android.gms.wearable.Wearable
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.R
 import dev.markdid.pocketflow.dictation.DictationBus
 import dev.markdid.pocketflow.dictation.DictationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 
 /**
@@ -34,7 +31,8 @@ class WatchMemoWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val node = inputData.getString(KEY_NODE)
         if (!file.exists()) return Result.success()
 
-        val reply = JSONObject()
+        var text = ""
+        var error: String? = null
         try {
             val result = withContext(Dispatchers.Main) {
                 val engine = DictationEngine(applicationContext)
@@ -51,23 +49,16 @@ class WatchMemoWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     engine.destroy()
                 }
             }
-            reply.put("text", result["text"] as? String ?: "")
-            (result["error"] as? String)?.let { reply.put("error", it) }
+            text = result["text"] as? String ?: ""
+            error = result["error"] as? String
             DictationBus.emit(mapOf("type" to "history"))
         } catch (t: Throwable) {
             Log.e(TAG, "watch memo $id failed", t)
             if (runAttemptCount < 2) return Result.retry()
-            reply.put("error", t.message ?: "Something went wrong.")
+            error = t.message ?: "Something went wrong."
         }
         file.delete()
-        if (node != null) {
-            runCatching {
-                Tasks.await(
-                    Wearable.getMessageClient(applicationContext)
-                        .sendMessage(node, "${WatchListenerService.RESULT_PREFIX}$id", reply.toString().toByteArray()),
-                )
-            }.onFailure { Log.w(TAG, "couldn't send watch memo $id back", it) }
-        }
+        if (node != null) WatchRemote.result(applicationContext, node, id, text, error)
         return Result.success()
     }
 

@@ -30,6 +30,7 @@ import dev.markdid.pocketflow.audio.BluetoothMicRouter
 import dev.markdid.pocketflow.audio.MemoRecorder
 import dev.markdid.pocketflow.input.TextDelivery
 import dev.markdid.pocketflow.walk.HeadsetControls
+import dev.markdid.pocketflow.wear.WatchRemote
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,6 +68,12 @@ class DictationService : Service() {
     /** Stop pressed while the headset link was still opening (a quick hold-to-talk release). */
     private var stopRequested = false
 
+    /** A memo started from the watch's record button, recorded here through the headset; results go back to it. */
+    private var watch: WatchRemote.Session? = null
+
+    /** Headset controls opened just for a watch memo (walk mode off), released once it's done. */
+    private var borrowedHeadset = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -81,6 +88,9 @@ class DictationService : Service() {
             ACTION_DISARM -> disarm()
             ACTION_TOGGLE -> toggle(memo = false)
             ACTION_TOGGLE_RECORDING -> toggleRecording()
+            ACTION_WATCH_START -> startForWatch(intent)
+            ACTION_WATCH_STOP -> if (intent.getStringExtra(EXTRA_ID) == watch?.id) stopAndProcess()
+            ACTION_WATCH_CANCEL -> if (intent.getStringExtra(EXTRA_ID) == watch?.id) cancelWatch()
             ACTION_START -> startRecording(memo = false)
             ACTION_STOP -> stopAndProcess()
             ACTION_WALK_ON -> setWalkMode(true)
@@ -111,6 +121,7 @@ class DictationService : Service() {
         settings.walkMode = enabled
         if (enabled) {
             settings.armed = true
+            borrowedHeadset = false
             if (headset == null) headset = HeadsetControls(this) { toggle(memo = true) }.also { it.enable() }
         } else {
             headset?.disable()
@@ -130,6 +141,46 @@ class DictationService : Service() {
             DictationState.listening -> stopAndProcess()
             DictationState.transcribing -> Unit
             else -> startRecording(memo)
+        }
+    }
+
+    /**
+     * The watch's record button, with headphones connected here: record the memo through the headset mic, so the
+     * wrist can stay down. The earbud button or the watch finishes it.
+     */
+    private fun startForWatch(intent: Intent) {
+        val id = intent.getStringExtra(EXTRA_ID) ?: return
+        val node = intent.getStringExtra(EXTRA_NODE) ?: return
+        if (DictationBus.isBusy) {
+            WatchRemote.unavailable(this, node, id)
+            return
+        }
+        watch = WatchRemote.Session(id, node)
+        if (headset == null) {
+            headset = HeadsetControls(this) { toggle(memo = true) }.also { it.enable() }
+            borrowedHeadset = true
+        }
+        startRecording(memo = true)
+    }
+
+    /** The watch gave up waiting and recorded with its own mic. */
+    private fun cancelWatch() {
+        watch = null
+        if (recorder != null) cancelRecording()
+        setState(DictationState.idle, "")
+        releaseBorrowedHeadset()
+    }
+
+    /** Lets the borrowed headset controls finish speaking, then releases them unless walk mode took them over. */
+    private fun releaseBorrowedHeadset() {
+        if (!borrowedHeadset) return
+        scope.launch {
+            delay(HEADSET_RELEASE_MS)
+            if (borrowedHeadset && watch == null && !DictationBus.isBusy) {
+                headset?.disable()
+                headset = null
+                borrowedHeadset = false
+            }
         }
     }
 
@@ -165,11 +216,26 @@ class DictationService : Service() {
         if (!audioOnly) scope.launch { runCatching { engine.warmUp() } }
 
         scope.launch {
-            if (memo) {
+            val session = watch
+            if (memo && session == null) {
                 headset?.startCue()
                 delay(250) // let the cue finish before the headset switches to call audio
             }
-            val useHeadset = settings.bluetoothMic && bluetooth.activate()
+            val useHeadset = (settings.bluetoothMic || session != null) && bluetooth.activate()
+            if (session != null) {
+                if (useHeadset) headset?.announce("Listening")
+                if (!useHeadset || watch !== session) {
+                    // No headset after all, or the watch stopped waiting: it records with its own mic.
+                    bluetooth.deactivate()
+                    if (watch === session) {
+                        watch = null
+                        WatchRemote.unavailable(this@DictationService, session.node, session.id)
+                    }
+                    setState(DictationState.idle, "")
+                    releaseBorrowedHeadset()
+                    return@launch
+                }
+            }
             val source = if (useHeadset) {
                 MediaRecorder.AudioSource.VOICE_COMMUNICATION
             } else {
@@ -180,6 +246,11 @@ class DictationService : Service() {
             if (!capture.start(file, source)) {
                 bluetooth.deactivate()
                 setState(DictationState.error, "Couldn't start the microphone. Is another app using it?")
+                if (session != null) {
+                    watch = null
+                    WatchRemote.unavailable(this@DictationService, session.node, session.id)
+                    releaseBorrowedHeadset()
+                }
                 return@launch
             }
             recorder = capture
@@ -188,7 +259,8 @@ class DictationService : Service() {
             polledWithSound = 0
             levelSource = capture::level
             vibrate(longArrayOf(0, 40))
-            Log.i(TAG, "recording memo=$memo audioOnly=$audioOnly headset=$useHeadset app=$targetApp")
+            session?.let { WatchRemote.listening(this@DictationService, it) }
+            Log.i(TAG, "recording watch=${session != null} memo=$memo audioOnly=$audioOnly headset=$useHeadset app=$targetApp")
             setState(
                 DictationState.listening,
                 when {
@@ -245,6 +317,8 @@ class DictationService : Service() {
         val file = audioFile ?: return
         val memo = recordingMemo
         val audioOnly = recordingAudioOnly
+        val session = watch
+        watch = null
         recorder = null
         audioFile = null
         levelSource = null
@@ -256,10 +330,13 @@ class DictationService : Service() {
         bluetooth.deactivate()
         vibrate(longArrayOf(0, 25, 40, 25))
         if (memo) headset?.stopCue()
+        session?.let { WatchRemote.stopped(this, it) }
 
         if (durationMillis < MIN_AUDIO_MS) {
             file.delete()
             setState(DictationState.idle, "")
+            session?.let { WatchRemote.result(this, it.node, it.id, "") }
+            releaseBorrowedHeadset()
             return
         }
         // Some headsets (e.g. glasses whose mic only works through their own app) open the call-audio link but send
@@ -272,6 +349,8 @@ class DictationService : Service() {
                 "Your headset’s mic sent no sound. Try another headset, or turn off “Use my headset’s mic” in Settings.",
             )
             if (memo) headset?.say("Your headset's mic isn't sending any sound.")
+            session?.let { WatchRemote.result(this, it.node, it.id, "", "Your headset’s mic sent no sound.") }
+            releaseBorrowedHeadset()
             return
         }
 
@@ -316,11 +395,16 @@ class DictationService : Service() {
                         "(stop $stopMillis ms, pipeline $processMillis ms, then delivery)",
                 )
                 if (text.isNotEmpty() || saved) DictationBus.emit(mapOf("type" to "history"))
+                session?.let { WatchRemote.result(this@DictationService, it.node, it.id, text, error) }
             } catch (t: Throwable) {
                 Log.e(TAG, "processing failed", t)
                 setState(DictationState.error, t.message ?: "Something went wrong.")
+                session?.let {
+                    WatchRemote.result(this@DictationService, it.node, it.id, "", t.message ?: "Something went wrong.")
+                }
             } finally {
                 file.delete()
+                releaseBorrowedHeadset()
             }
         }
     }
@@ -488,6 +572,12 @@ class DictationService : Service() {
         private const val ACTION_DISARM = "dev.markdid.pocketflow.DISARM"
         private const val ACTION_TOGGLE = "dev.markdid.pocketflow.TOGGLE"
         private const val ACTION_TOGGLE_RECORDING = "dev.markdid.pocketflow.TOGGLE_RECORDING"
+        private const val ACTION_WATCH_START = "dev.markdid.pocketflow.WATCH_START"
+        private const val ACTION_WATCH_STOP = "dev.markdid.pocketflow.WATCH_STOP"
+        private const val ACTION_WATCH_CANCEL = "dev.markdid.pocketflow.WATCH_CANCEL"
+        private const val EXTRA_ID = "id"
+        private const val EXTRA_NODE = "node"
+        private const val HEADSET_RELEASE_MS = 8_000L
         private const val ACTION_START = "dev.markdid.pocketflow.START"
         private const val ACTION_STOP = "dev.markdid.pocketflow.STOP"
         private const val ACTION_WALK_ON = "dev.markdid.pocketflow.WALK_ON"
@@ -513,6 +603,10 @@ class DictationService : Service() {
         fun disarm(context: Context) = send(context, ACTION_DISARM)
         fun toggle(context: Context) = send(context, ACTION_TOGGLE)
         fun toggleRecording(context: Context) = send(context, ACTION_TOGGLE_RECORDING)
+        fun startForWatch(context: Context, id: String, node: String) =
+            send(context, ACTION_WATCH_START) { putExtra(EXTRA_ID, id).putExtra(EXTRA_NODE, node) }
+        fun stopForWatch(context: Context, id: String) = send(context, ACTION_WATCH_STOP) { putExtra(EXTRA_ID, id) }
+        fun cancelForWatch(context: Context, id: String) = send(context, ACTION_WATCH_CANCEL) { putExtra(EXTRA_ID, id) }
         fun start(context: Context) = send(context, ACTION_START)
         fun stop(context: Context) = send(context, ACTION_STOP)
         fun setWalkMode(context: Context, enabled: Boolean) = send(context, if (enabled) ACTION_WALK_ON else ACTION_WALK_OFF)
@@ -522,8 +616,8 @@ class DictationService : Service() {
             if (PocketFlowApp.instance.settings.armed) send(context, null)
         }
 
-        private fun send(context: Context, action: String?) {
-            val intent = Intent(context, DictationService::class.java).setAction(action)
+        private fun send(context: Context, action: String?, extras: Intent.() -> Unit = {}) {
+            val intent = Intent(context, DictationService::class.java).setAction(action).apply(extras)
             // A microphone foreground service can't start without the permission, so ask in the app first.
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 if (action == ACTION_DISARM) context.stopService(intent)

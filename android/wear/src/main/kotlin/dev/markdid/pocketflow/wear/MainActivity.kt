@@ -96,6 +96,7 @@ private fun WatchScreen(status: WatchStatus, onRecord: () -> Unit) {
     val queued = last?.phase == MemoPhase.Queued || status.waiting > 0
     val writing = since == null && (last?.phase == MemoPhase.Writing || (queued && status.phoneReachable))
     val title = when {
+        since != null && status.connecting -> "Starting…"
         since != null -> "Listening…"
         queued && !status.phoneReachable -> "Waiting for phone"
         writing -> "Writing…"
@@ -103,6 +104,7 @@ private fun WatchScreen(status: WatchStatus, onRecord: () -> Unit) {
         else -> "Tap to speak"
     }
     val subtitle = when {
+        since != null && status.connecting -> ""
         since != null -> elapsed(since)
         queued && !status.phoneReachable && status.waiting > 1 -> "${status.waiting} queued"
         last?.phase == MemoPhase.Failed -> last.text
@@ -122,7 +124,7 @@ private fun WatchScreen(status: WatchStatus, onRecord: () -> Unit) {
             item {
                 VoiceOrb(
                     mode = when {
-                        since != null -> OrbMode.Listening
+                        since != null && !status.connecting -> OrbMode.Listening
                         writing -> OrbMode.Processing
                         else -> OrbMode.Idle
                     },

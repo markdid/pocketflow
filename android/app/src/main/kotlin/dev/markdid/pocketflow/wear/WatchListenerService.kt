@@ -3,14 +3,20 @@ package dev.markdid.pocketflow.wear
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.ChannelClient
+import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
+import dev.markdid.pocketflow.audio.BluetoothMicRouter
+import dev.markdid.pocketflow.dictation.DictationBus
+import dev.markdid.pocketflow.dictation.DictationService
 import java.io.File
 
 /**
- * Receives recordings from the PocketFlow watch app. Each arrives on a channel at
- * `/pocketflow/recording/<id>/<audioMillis>`; once the file is safely in the inbox the watch is told it can delete its
- * copy, and [WatchMemoWorker] turns it into a memo. Paths must match the watch's `PhoneSync`.
+ * Receives recordings from the PocketFlow watch app, and its requests to record here through connected headphones
+ * instead ([WatchRemote]).
+ *
+ * Recordings each arrive on a channel at `/pocketflow/recording/<id>/<audioMillis>`; once the file is safely in the
+ * inbox the watch is told it can delete its copy, and [WatchMemoWorker] turns it into a memo. Paths must match the watch's `PhoneSync`.
  */
 class WatchListenerService : WearableListenerService() {
     // Called on a background thread, and the service stays bound until it returns, so blocking here is intended.
@@ -44,11 +50,31 @@ class WatchListenerService : WearableListenerService() {
         WatchMemoWorker.enqueue(this, id, file, audioMillis, channel.nodeId)
     }
 
+    override fun onMessageReceived(event: MessageEvent) {
+        val path = event.path
+        val id = path.substringAfterLast('/').filter(Char::isLetterOrDigit)
+        if (id.isEmpty()) return
+        when {
+            path.startsWith(WatchRemote.START) -> {
+                // Recording from the background only works while the dictation service is already running (Ready).
+                val ready = DictationBus.status.value.armed
+                val headset = BluetoothMicRouter(this).isAvailable()
+                Log.i(TAG, "watch asks to record $id here: ready=$ready headset=$headset")
+                if (ready && headset) {
+                    DictationService.startForWatch(this, id, event.sourceNodeId)
+                } else {
+                    WatchRemote.unavailable(this, event.sourceNodeId, id)
+                }
+            }
+            path.startsWith(WatchRemote.STOP) -> DictationService.stopForWatch(this, id)
+            path.startsWith(WatchRemote.CANCEL) -> DictationService.cancelForWatch(this, id)
+        }
+    }
+
     companion object {
         private const val TAG = "PocketFlowWatch"
         const val INBOX = "watch_inbox"
         private const val RECORDING_PREFIX = "/pocketflow/recording/"
         private const val RECEIVED_PREFIX = "/pocketflow/received/"
-        const val RESULT_PREFIX = "/pocketflow/result/"
     }
 }

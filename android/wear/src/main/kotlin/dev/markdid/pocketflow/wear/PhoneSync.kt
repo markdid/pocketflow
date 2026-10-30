@@ -59,7 +59,7 @@ object PhoneSync {
         WatchStore.setWaiting(pending(context).size)
     }
 
-    private suspend fun findPhone(context: Context): String? = runCatching {
+    suspend fun findPhone(context: Context): String? = runCatching {
         val nodes = Wearable.getCapabilityClient(context)
             .getCapability(CAPABILITY, CapabilityClient.FILTER_REACHABLE)
             .await()

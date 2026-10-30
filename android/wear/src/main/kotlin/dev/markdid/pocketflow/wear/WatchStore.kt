@@ -22,6 +22,10 @@ data class LastMemo(val id: String, val phase: MemoPhase, val text: String = "")
 data class WatchStatus(
     /** `SystemClock.elapsedRealtime()` when the current recording started; null when not recording. */
     val recordingSince: Long? = null,
+    /** Recording, while asking whether the phone's headphones should take over. */
+    val connecting: Boolean = false,
+    /** The phone is recording through its headphones ([PhoneRemote]); the watch only finishes it. */
+    val remote: Boolean = false,
     /** Recordings not yet on the phone. */
     val waiting: Int = 0,
     val phoneReachable: Boolean = true,
@@ -41,7 +45,8 @@ object WatchStore {
         _status.update { it.copy(last = last, waiting = PhoneSync.pending(context).size) }
     }
 
-    fun setRecording(since: Long?) = _status.update { it.copy(recordingSince = since) }
+    fun setRecording(since: Long?, connecting: Boolean = false, remote: Boolean = false) =
+        _status.update { it.copy(recordingSince = since, connecting = connecting, remote = remote) }
 
     fun setWaiting(count: Int, phoneReachable: Boolean = _status.value.phoneReachable) =
         _status.update { it.copy(waiting = count, phoneReachable = phoneReachable) }

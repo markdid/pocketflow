@@ -74,8 +74,27 @@ class RecordingService : Service() {
         file = output
         levelSource = { runCatching { created.maxAmplitude / 12_000f }.getOrDefault(0f).coerceIn(0f, 1f) }
         startedAt = SystemClock.elapsedRealtime()
-        WatchStore.setRecording(startedAt)
-        WatchApp.buzz(this, longArrayOf(0, 40))
+        // Recording already, quietly, so nothing is lost while asking whether the phone's headphones should take over.
+        WatchStore.setRecording(startedAt, connecting = true)
+        val session = id
+        scope.launch {
+            val viaPhone = PhoneRemote.start(this@RecordingService, session)
+            when {
+                // Finished before the phone answered: the watch's recording stands.
+                recorder !== created -> if (viaPhone) PhoneRemote.cancel(this@RecordingService, session)
+                viaPhone -> {
+                    discard()
+                    WatchStore.setLast(this@RecordingService, LastMemo(session, MemoPhase.Queued))
+                    WatchStore.setRecording(SystemClock.elapsedRealtime(), remote = true)
+                    WatchApp.buzz(this@RecordingService, longArrayOf(0, 40))
+                    finish()
+                }
+                else -> {
+                    WatchStore.setRecording(startedAt)
+                    WatchApp.buzz(this@RecordingService, longArrayOf(0, 40))
+                }
+            }
+        }
         // An hour of 32 kbps AAC stays under the transcription API's 25 MB upload limit.
         limit = scope.launch {
             delay(MAX_RECORDING_MS)
@@ -113,6 +132,18 @@ class RecordingService : Service() {
         }
     }
 
+    /** The phone took over: drop the watch's own recording. */
+    private fun discard() {
+        val current = recorder ?: return
+        recorder = null
+        levelSource = null
+        limit?.cancel()
+        runCatching { current.stop() }
+        current.release()
+        file?.delete()
+        file = null
+    }
+
     private fun finish() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -147,7 +178,8 @@ class RecordingService : Service() {
         }
         recorder = null
         levelSource = null
-        WatchStore.setRecording(null)
+        // The phone may be the one recording now.
+        if (!WatchStore.status.value.remote) WatchStore.setRecording(null)
         scope.cancel()
         super.onDestroy()
     }
@@ -167,7 +199,14 @@ class RecordingService : Service() {
 
         /** Call from the foreground (the screen): a microphone service can't start from the background. */
         fun toggle(context: Context) {
-            if (WatchStore.status.value.recordingSince != null) {
+            val status = WatchStore.status.value
+            if (status.remote) {
+                val id = status.last?.id ?: return
+                PhoneRemote.stop(context, id)
+                WatchStore.setRecording(null)
+                WatchStore.advance(context, id, MemoPhase.Writing)
+                WatchApp.buzz(context, longArrayOf(0, 25, 40, 25))
+            } else if (status.recordingSince != null) {
                 context.startService(Intent(context, RecordingService::class.java).setAction(ACTION_STOP))
             } else {
                 ContextCompat.startForegroundService(

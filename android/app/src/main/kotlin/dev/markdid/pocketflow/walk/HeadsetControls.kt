@@ -11,10 +11,15 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.content.IntentCompat
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import kotlin.coroutines.resume
 
 /**
  * Walk mode: the headset's play/pause button starts and stops a memo, with audio cues so the phone can stay in a
@@ -95,6 +100,35 @@ class HeadsetControls(private val context: Context, private val onButton: () -> 
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "pocketflow-${System.currentTimeMillis()}")
     }
 
+    /**
+     * Speaks [text] over call audio, for when the headset mic is already open (a memo started from the watch), and
+     * returns once it has been said, so recording starts right after it. Gives up after a few seconds.
+     */
+    suspend fun announce(text: String) {
+        withTimeoutOrNull(ANNOUNCE_TIMEOUT_MS) {
+            while (!ttsReady) delay(50)
+            val engine = tts ?: return@withTimeoutOrNull
+            val id = "pocketflow-${System.currentTimeMillis()}"
+            suspendCancellableCoroutine { done ->
+                engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) = Unit
+
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId == id && done.isActive) done.resume(Unit)
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        if (utteranceId == id && done.isActive) done.resume(Unit)
+                    }
+                })
+                engine.setAudioAttributes(callAudio)
+                engine.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), id)
+            }
+        }
+        tts?.setAudioAttributes(mediaAudio)
+    }
+
     private fun tone(type: Int) {
         runCatching {
             val generator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
@@ -134,6 +168,15 @@ class HeadsetControls(private val context: Context, private val onButton: () -> 
     private companion object {
         const val TAG = "PocketFlow"
         const val DEBOUNCE_MS = 600L
+        const val ANNOUNCE_TIMEOUT_MS = 4_000L
+        val callAudio: AudioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+        val mediaAudio: AudioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
         val buttonKeys = setOf(
             KeyEvent.KEYCODE_HEADSETHOOK,
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,

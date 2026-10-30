@@ -12,6 +12,17 @@ class PhoneListenerService : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
         val path = event.path
         when {
+            path.startsWith(PhoneRemote.LISTENING) -> PhoneRemote.answer(path.removePrefix(PhoneRemote.LISTENING), true)
+            path.startsWith(PhoneRemote.UNAVAILABLE) -> PhoneRemote.answer(path.removePrefix(PhoneRemote.UNAVAILABLE), false)
+            // Finished from the earbud, by silence, or by the watch: the phone is writing it up.
+            path.startsWith(PhoneRemote.STOPPED) -> {
+                val id = path.removePrefix(PhoneRemote.STOPPED)
+                if (WatchStore.status.value.remote && WatchStore.status.value.last?.id == id) {
+                    WatchStore.setRecording(null)
+                    WatchStore.advance(this, id, MemoPhase.Writing)
+                    WatchApp.buzz(this, longArrayOf(0, 25, 40, 25))
+                }
+            }
             path.startsWith(PhoneSync.RECEIVED_PREFIX) ->
                 PhoneSync.acknowledge(this, path.removePrefix(PhoneSync.RECEIVED_PREFIX))
             path.startsWith(PhoneSync.RESULT_PREFIX) -> {
