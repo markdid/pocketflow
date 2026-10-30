@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pocketflow/dictation/dictation_style.dart';
 import 'package:pocketflow/dictation/models.dart';
+import 'package:pocketflow/features/home/widgets/record_button.dart';
 import 'package:pocketflow/platform/android_bridge.dart';
 import 'package:pocketflow/ui/formatting/app_names.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
@@ -268,6 +269,9 @@ class _OrbSection extends StatelessWidget {
   final bool audioOnly;
   final VoidCallback? onRecord;
 
+  static const _orbSize = 220.0;
+  static const _recordSize = 52.0;
+
   @override
   Widget build(BuildContext context) {
     final mode = switch (state) {
@@ -289,14 +293,32 @@ class _OrbSection extends StatelessWidget {
 
     return Column(
       children: [
-        VoiceOrb(
-          mode: mode,
-          level: level,
-          size: 220,
-          onTap: onTap,
-          semanticLabel: recording
-              ? 'Stop recording'
-              : (state == DictationState.listening ? 'Finish dictating' : 'Start dictating'),
+        SizedBox.square(
+          dimension: _orbSize,
+          child: Stack(
+            children: [
+              VoiceOrb(
+                mode: mode,
+                level: level,
+                size: _orbSize,
+                onTap: onTap,
+                semanticLabel: recording
+                    ? 'Stop recording'
+                    : (state == DictationState.listening ? 'Finish dictating' : 'Start dictating'),
+              ),
+              if (onRecord != null)
+                // Just off the orb's lower right edge (the orb's radius is 30% of its box).
+                Positioned(
+                  left: _orbSize * 0.82 - _recordSize / 2,
+                  top: _orbSize * 0.82 - _recordSize / 2,
+                  child: RecordButton(
+                    recording: recording,
+                    size: _recordSize,
+                    onTap: recording || state == DictationState.idle || state == DictationState.error ? onRecord : null,
+                  ),
+                ),
+            ],
+          ),
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
@@ -316,55 +338,7 @@ class _OrbSection extends StatelessWidget {
             ),
           ),
         ),
-        if (onRecord != null) ...[
-          const SizedBox(height: 18),
-          _VoiceMemoButton(
-            recording: recording,
-            onTap: recording || state == DictationState.idle || state == DictationState.error ? onRecord : null,
-          ),
-        ],
       ],
-    );
-  }
-}
-
-/// Records audio that's kept on the device and transcribed only on request.
-class _VoiceMemoButton extends StatelessWidget {
-  const _VoiceMemoButton({required this.recording, this.onTap});
-
-  final bool recording;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = onTap == null ? AppColors.textFaint : AppColors.text;
-    return Semantics(
-      button: true,
-      label: recording ? 'Stop voice memo' : 'Record voice memo',
-      excludeSemantics: true,
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(99),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(99),
-          onTap: onTap,
-          child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), boxShadow: AppColors.cardShadow),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (recording)
-                  const Icon(Icons.stop_rounded, size: 18, color: AppColors.danger)
-                else
-                  Icon(Icons.mic_none_rounded, size: 18, color: color),
-                const SizedBox(width: 8),
-                Text(recording ? 'Stop' : 'Voice memo', style: AppThemeData.geist(14, weight: 560, color: color)),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
