@@ -13,6 +13,8 @@ class WatchApp : Application() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL, "Recording", NotificationManager.IMPORTANCE_LOW),
         )
+        // A recording still in progress when the process died can't be finished or sent.
+        PhoneSync.outbox(this).listFiles { file -> file.name.endsWith(".recording") }?.forEach { it.delete() }
         WatchStore.load(this)
     }
 

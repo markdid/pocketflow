@@ -82,12 +82,15 @@ class DictationPipeline {
 
   /// Throws [TranscriptionSavedException] when transcription fails and the recording was kept for [retry].
   /// [voiceCommand] means the recording starts with a spoken "take a note" (from the glasses), which is dropped.
+  /// [keepAudio] false drops a memo's audio once it's transcribed (watch memos: only the text matters). A recording
+  /// that fails to transcribe is kept either way.
   Future<DictationResult> process({
     required File audio,
     DictationMode mode = DictationMode.dictation,
     String? appId,
     int? audioMillis,
     bool voiceCommand = false,
+    bool keepAudio = true,
   }) async {
     final timer = Stopwatch()..start();
     final started = DateTime.now();
@@ -114,7 +117,14 @@ class DictationPipeline {
       await _history.save(saved);
       throw TranscriptionSavedException(e, saved);
     }
-    return _finish(settings, entry.copyWith(transcribeMillis: timer.elapsedMilliseconds), raw, audio, timer);
+    return _finish(
+      settings,
+      entry.copyWith(transcribeMillis: timer.elapsedMilliseconds),
+      raw,
+      audio,
+      timer,
+      keepAudio: keepAudio,
+    );
   }
 
   /// Keeps [audio] in history without transcribing it, for [retry] to transcribe later on request.
@@ -184,8 +194,9 @@ class DictationPipeline {
     HistoryEntry entry,
     String raw,
     File audio,
-    Stopwatch timer,
-  ) async {
+    Stopwatch timer, {
+    bool keepAudio = true,
+  }) async {
     if (raw.isEmpty) return const DictationResult(text: '', entry: null);
     final vocabulary = await _vocabulary.load();
     final corrected = Vocabulary.applyReplacements(raw, vocabulary.rules);
@@ -207,7 +218,7 @@ class DictationPipeline {
     if (text.isEmpty) return const DictationResult(text: '', entry: null);
 
     await _vocabulary.recordHits(Vocabulary.termsUsedIn(text, vocabulary.terms).map((t) => t.term));
-    final keep = entry.mode != DictationMode.dictation || settings.keepRecordings;
+    final keep = (keepAudio && entry.mode != DictationMode.dictation) || settings.keepRecordings;
     final kept = entry.audioPath;
     final finished = entry.copyWith(
       rawText: raw,

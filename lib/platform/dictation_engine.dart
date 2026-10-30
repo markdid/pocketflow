@@ -27,6 +27,7 @@ Future<void> runDictationEngine() async {
             appId: args['appId'] as String?,
             audioMillis: args['audioMillis'] as int?,
             voiceCommand: args['voiceCommand'] == true,
+            keepAudio: args['keepAudio'] != false,
           );
           return {'text': result.text, 'warning': result.warning, 'historyId': result.entry?.id};
         } on TranscriptionSavedException catch (e) {

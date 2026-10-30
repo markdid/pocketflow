@@ -39,7 +39,14 @@ class WatchMemoWorker(context: Context, params: WorkerParameters) : CoroutineWor
             val result = withContext(Dispatchers.Main) {
                 val engine = DictationEngine(applicationContext)
                 try {
-                    engine.process(file.absolutePath, appId = null, memo = true, inputData.getLong(KEY_MILLIS, 0))
+                    // Only the text matters from the watch; failed recordings are still kept to retry.
+                    engine.process(
+                        file.absolutePath,
+                        appId = null,
+                        memo = true,
+                        audioMillis = inputData.getLong(KEY_MILLIS, 0),
+                        keepAudio = false,
+                    )
                 } finally {
                     engine.destroy()
                 }
