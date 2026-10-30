@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pocketflow/ui/preview/app_preview.dart';
+import 'package:pocketflow/ui/theme/app_theme_data.dart';
 
-/// A recorder-style button: dark gray housing with a red dot. While [recording] it sits pressed in and the dot
+/// A recorder-style button: a surface circle like the app's cards, with a red dot. While [recording] it sits pressed in and the dot
 /// becomes a stop square.
 class RecordButton extends StatelessWidget {
-  const RecordButton({super.key, required this.recording, this.onTap, this.size = 52});
+  const RecordButton({super.key, required this.recording, this.onTap, this.size = 46});
 
   final bool recording;
 
@@ -16,7 +17,7 @@ class RecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dot = recording ? size * 0.3 : size * 0.36;
+    final dot = recording ? size * 0.28 : size * 0.32;
     return Semantics(
       button: true,
       label: recording ? 'Stop voice memo' : 'Record voice memo',
@@ -34,14 +35,8 @@ class RecordButton extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF55595F), Color(0xFF3E4146)],
-                ),
-                boxShadow: recording
-                    ? const [BoxShadow(color: Color(0x290F1115), blurRadius: 2, offset: Offset(0, 1))]
-                    : const [BoxShadow(color: Color(0x330F1115), blurRadius: 6, offset: Offset(0, 3))],
+                color: recording ? AppColors.surfaceHigh : AppColors.surface,
+                boxShadow: AppColors.cardShadow,
               ),
               alignment: Alignment.center,
               child: AnimatedContainer(
@@ -50,7 +45,7 @@ class RecordButton extends StatelessWidget {
                 width: dot,
                 height: dot,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE5483C),
+                  color: AppColors.danger,
                   borderRadius: BorderRadius.circular(recording ? size * 0.06 : dot / 2),
                 ),
               ),
