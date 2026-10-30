@@ -270,7 +270,6 @@ class _OrbSection extends StatelessWidget {
   final VoidCallback? onRecord;
 
   static const _orbSize = 220.0;
-  static const _recordSize = 52.0;
 
   @override
   Widget build(BuildContext context) {
@@ -293,9 +292,11 @@ class _OrbSection extends StatelessWidget {
 
     return Column(
       children: [
-        SizedBox.square(
-          dimension: _orbSize,
+        SizedBox(
+          width: double.infinity,
+          height: _orbSize,
           child: Stack(
+            alignment: Alignment.center,
             children: [
               VoiceOrb(
                 mode: mode,
@@ -307,13 +308,11 @@ class _OrbSection extends StatelessWidget {
                     : (state == DictationState.listening ? 'Finish dictating' : 'Start dictating'),
               ),
               if (onRecord != null)
-                // Just off the orb's lower right edge (the orb's radius is 30% of its box).
                 Positioned(
-                  left: _orbSize * 0.82 - _recordSize / 2,
-                  top: _orbSize * 0.82 - _recordSize / 2,
+                  right: 0,
+                  bottom: 12,
                   child: RecordButton(
                     recording: recording,
-                    size: _recordSize,
                     onTap: recording || state == DictationState.idle || state == DictationState.error ? onRecord : null,
                   ),
                 ),
