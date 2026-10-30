@@ -11,7 +11,7 @@
     <application
         android:name=".WatchApp"
         android:label="PocketFlow"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
 
         <!-- Needs the phone app: it does the transcribing. -->

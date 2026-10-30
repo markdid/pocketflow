@@ -72,6 +72,7 @@ class RecordingService : Service() {
         }
         recorder = created
         file = output
+        levelSource = { runCatching { created.maxAmplitude / 12_000f }.getOrDefault(0f).coerceIn(0f, 1f) }
         startedAt = SystemClock.elapsedRealtime()
         WatchStore.setRecording(startedAt)
         WatchApp.buzz(this, longArrayOf(0, 40))
@@ -91,6 +92,7 @@ class RecordingService : Service() {
         }
         recorder = null
         file = null
+        levelSource = null
         limit?.cancel()
         val millis = SystemClock.elapsedRealtime() - startedAt
         runCatching { current.stop() }
@@ -144,6 +146,7 @@ class RecordingService : Service() {
             it.release()
         }
         recorder = null
+        levelSource = null
         WatchStore.setRecording(null)
         scope.cancel()
         super.onDestroy()
@@ -156,6 +159,11 @@ class RecordingService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_RECORDING_MS = 60 * 60 * 1000L
+
+        /** Loudness of the active recording (0..1), for the orb; null when not recording. */
+        @Volatile
+        var levelSource: (() -> Float)? = null
+            private set
 
         /** Call from the foreground (the screen): a microphone service can't start from the background. */
         fun toggle(context: Context) {
