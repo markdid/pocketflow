@@ -82,10 +82,9 @@ class RecordingService : Service() {
             when {
                 // Finished before the phone answered: the watch's recording stands.
                 recorder !== created -> if (viaPhone) PhoneRemote.cancel(this@RecordingService, session)
+                // PhoneListenerService has already switched the screen over.
                 viaPhone -> {
                     discard()
-                    WatchStore.setLast(this@RecordingService, LastMemo(session, MemoPhase.Queued))
-                    WatchStore.setRecording(SystemClock.elapsedRealtime(), remote = true)
                     WatchApp.buzz(this@RecordingService, longArrayOf(0, 40))
                     finish()
                 }

@@ -29,14 +29,24 @@ import kotlin.coroutines.resume
  * moment of silence when walk mode turns on and again after each spoken confirmation. If music is playing, the music
  * app keeps the button until PocketFlow plays something again.
  */
-class HeadsetControls(private val context: Context, private val onButton: () -> Unit) {
+class HeadsetControls(
+    private val context: Context,
+    /** False for speech only: no media session, so a watch doesn't open its media remote and no button stops a memo. */
+    private val claimButtons: Boolean = true,
+    private val onButton: () -> Unit = {},
+) {
     private var session: MediaSession? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var lastPress = 0L
 
     fun enable() {
-        if (session != null) return
+        if (session != null || tts != null) return
+        tts = TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) tts?.language = Locale.getDefault()
+        }
+        if (!claimButtons) return
         session = MediaSession(context, "PocketFlow walk mode").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onMediaButtonEvent(intent: Intent): Boolean {
@@ -58,10 +68,6 @@ class HeadsetControls(private val context: Context, private val onButton: () -> 
                     .build(),
             )
             isActive = true
-        }
-        tts = TextToSpeech(context) { status ->
-            ttsReady = status == TextToSpeech.SUCCESS
-            if (ttsReady) tts?.language = Locale.getDefault()
         }
         claimMediaButtons()
     }
@@ -94,7 +100,7 @@ class HeadsetControls(private val context: Context, private val onButton: () -> 
     fun say(text: String) {
         val engine = tts
         if (engine == null || !ttsReady) {
-            claimMediaButtons()
+            if (claimButtons) claimMediaButtons()
             return
         }
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "pocketflow-${System.currentTimeMillis()}")
@@ -102,7 +108,7 @@ class HeadsetControls(private val context: Context, private val onButton: () -> 
 
     /**
      * Speaks [text] over call audio, for when the headset mic is already open (a memo started from the watch), and
-     * returns once it has been said, so recording starts right after it. Gives up after a few seconds.
+     * returns once it has been said. Gives up after a few seconds.
      */
     suspend fun announce(text: String) {
         withTimeoutOrNull(ANNOUNCE_TIMEOUT_MS) {

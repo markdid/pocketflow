@@ -48,6 +48,9 @@ object PhoneRemote {
         }
     }
 
+    /** Whether a recording is still waiting to hear if the phone takes it. */
+    fun isWaiting(id: String) = answers.containsKey(id)
+
     fun answer(id: String, listening: Boolean) {
         answers[id]?.complete(listening)
     }

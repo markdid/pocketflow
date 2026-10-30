@@ -1,5 +1,6 @@
 package dev.markdid.pocketflow.wear
 
+import android.os.SystemClock
 import android.util.Log
 import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.MessageEvent
@@ -12,7 +13,15 @@ class PhoneListenerService : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
         val path = event.path
         when {
-            path.startsWith(PhoneRemote.LISTENING) -> PhoneRemote.answer(path.removePrefix(PhoneRemote.LISTENING), true)
+            path.startsWith(PhoneRemote.LISTENING) -> {
+                val id = path.removePrefix(PhoneRemote.LISTENING)
+                // Switch over here, before the phone's next messages ("stopped", the result) are handled.
+                if (PhoneRemote.isWaiting(id) && WatchStore.status.value.connecting) {
+                    WatchStore.setLast(this, LastMemo(id, MemoPhase.Queued))
+                    WatchStore.setRecording(SystemClock.elapsedRealtime(), remote = true)
+                }
+                PhoneRemote.answer(id, true)
+            }
             path.startsWith(PhoneRemote.UNAVAILABLE) -> PhoneRemote.answer(path.removePrefix(PhoneRemote.UNAVAILABLE), false)
             // Finished from the earbud, by silence, or by the watch: the phone is writing it up.
             path.startsWith(PhoneRemote.STOPPED) -> {
