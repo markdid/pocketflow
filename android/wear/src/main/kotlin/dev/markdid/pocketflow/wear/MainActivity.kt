@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -39,7 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The phone app's orb: opening the app starts recording, tap to finish. The latest memo's progress and text show
+ * The phone app's orb: opening the app starts recording, tap the orb or press Back to finish. The latest memo's progress and text show
  * underneath.
  */
 class MainActivity : ComponentActivity() {
@@ -109,6 +110,9 @@ private fun WatchScreen(status: WatchStatus, onRecord: () -> Unit) {
         else -> ""
     }
     val memo = last?.text?.takeIf { since == null && !writing && last.phase == MemoPhase.Done && it.isNotEmpty() }
+
+    // The Back key finishes a recording without looking: double-press Home to start, Back to send.
+    BackHandler(enabled = since != null, onBack = onRecord)
 
     Scaffold(
         modifier = Modifier.background(Pearl.background),
