@@ -25,7 +25,12 @@ android {
 
     buildTypes {
         release {
+            // Debug key, like the phone app's builds: the Data Layer only pairs apps with the same signature.
             signingConfig = signingConfigs.getByName("debug")
+            // A small APK installs before the watch's Wi-Fi debugging connection drops.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
 
@@ -43,6 +48,8 @@ kotlin {
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
+    // play-services pulls in an old Fragment that breaks registerForActivityResult (the permission prompt).
+    implementation("androidx.fragment:fragment:1.8.6")
     implementation("androidx.wear.compose:compose-material:1.4.1")
     implementation("androidx.wear.compose:compose-foundation:1.4.1")
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
