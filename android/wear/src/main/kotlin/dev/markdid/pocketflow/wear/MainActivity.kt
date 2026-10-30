@@ -1,6 +1,7 @@
 package dev.markdid.pocketflow.wear
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -37,23 +38,38 @@ import androidx.wear.compose.material.TimeTextDefaults
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** The phone app's orb: tap, speak, tap. The latest memo's progress and text show underneath. */
+/**
+ * The phone app's orb: opening the app starts recording, tap to finish. The latest memo's progress and text show
+ * underneath.
+ */
 class MainActivity : ComponentActivity() {
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
             if (granted[Manifest.permission.RECORD_AUDIO] == true) RecordingService.toggle(this)
         }
 
+    /** Set by a launch (app list, Home key double-press, assistant), not by returning to an open app. */
+    private var recordOnResume = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recordOnResume = savedInstanceState == null
         setContent {
             val status by WatchStore.status.collectAsState()
             MaterialTheme { WatchScreen(status, onRecord = ::record) }
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        recordOnResume = true
+    }
+
     override fun onResume() {
         super.onResume()
+        // Started here rather than on launch: a microphone service needs the screen in front.
+        if (recordOnResume && WatchStore.status.value.recordingSince == null) record()
+        recordOnResume = false
         lifecycleScope.launch { PhoneSync.flush(this@MainActivity) }
     }
 
