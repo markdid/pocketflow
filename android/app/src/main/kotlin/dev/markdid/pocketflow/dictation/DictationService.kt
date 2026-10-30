@@ -54,6 +54,9 @@ class DictationService : Service() {
     private var recorder: AudioCapture? = null
     private var audioFile: File? = null
     private var recordingMemo = false
+
+    /** Save the active recording as audio only, without transcribing. */
+    private var recordingAudioOnly = false
     private var targetApp: String? = null
     private var silenceJob: Job? = null
 
@@ -77,6 +80,7 @@ class DictationService : Service() {
         when (intent?.action) {
             ACTION_DISARM -> disarm()
             ACTION_TOGGLE -> toggle(memo = false)
+            ACTION_TOGGLE_RECORDING -> toggleRecording()
             ACTION_START -> startRecording(memo = false)
             ACTION_STOP -> stopAndProcess()
             ACTION_WALK_ON -> setWalkMode(true)
@@ -129,18 +133,36 @@ class DictationService : Service() {
         }
     }
 
-    private fun startRecording(memo: Boolean) {
+    /** Starts or finishes a recording that's saved without transcribing. Leaves a dictation in progress alone. */
+    private fun toggleRecording() {
+        val state = DictationBus.status.value.state
+        when {
+            state == DictationState.listening && recordingAudioOnly -> stopAndProcess()
+            !DictationBus.isBusy -> startRecording(memo = false, audioOnly = true)
+        }
+    }
+
+    private fun startRecording(memo: Boolean, audioOnly: Boolean = false) {
         if (DictationBus.isBusy) return
         PocketFlowAccessibilityService.finishCorrectionWatch()
         settings.armed = true
         publishArmed()
 
         recordingMemo = memo
+        recordingAudioOnly = audioOnly
         stopRequested = false
-        targetApp = if (memo) null else TextDelivery.targetApp()
-        if (!memo) TextDelivery.prepareForRemoteDesktop(this)
-        setState(DictationState.listening, if (memo) "Recording memo…" else "Listening…")
-        scope.launch { runCatching { engine.warmUp() } }
+        val textBound = !memo && !audioOnly
+        targetApp = if (textBound) TextDelivery.targetApp() else null
+        if (textBound) TextDelivery.prepareForRemoteDesktop(this)
+        setState(
+            DictationState.listening,
+            when {
+                audioOnly -> "Recording…"
+                memo -> "Recording memo…"
+                else -> "Listening…"
+            },
+        )
+        if (!audioOnly) scope.launch { runCatching { engine.warmUp() } }
 
         scope.launch {
             if (memo) {
@@ -153,7 +175,7 @@ class DictationService : Service() {
             } else {
                 MediaRecorder.AudioSource.VOICE_RECOGNITION
             }
-            val capture: AudioCapture = if (memo) MemoRecorder(this@DictationService) else AacAudioRecorder()
+            val capture: AudioCapture = if (memo || audioOnly) MemoRecorder(this@DictationService) else AacAudioRecorder()
             val file = File(cacheDir, "recording_${System.currentTimeMillis()}.m4a")
             if (!capture.start(file, source)) {
                 bluetooth.deactivate()
@@ -166,10 +188,12 @@ class DictationService : Service() {
             polledWithSound = 0
             levelSource = capture::level
             vibrate(longArrayOf(0, 40))
-            Log.i(TAG, "recording memo=$memo headset=$useHeadset app=$targetApp")
+            Log.i(TAG, "recording memo=$memo audioOnly=$audioOnly headset=$useHeadset app=$targetApp")
             setState(
                 DictationState.listening,
                 when {
+                    audioOnly && useHeadset -> "Recording with your headset mic…"
+                    audioOnly -> "Recording…"
                     memo && useHeadset -> "Recording memo with your headset mic…"
                     memo -> "Recording memo…"
                     useHeadset -> "Listening through your headset…"
@@ -220,6 +244,7 @@ class DictationService : Service() {
         }
         val file = audioFile ?: return
         val memo = recordingMemo
+        val audioOnly = recordingAudioOnly
         recorder = null
         audioFile = null
         levelSource = null
@@ -247,6 +272,11 @@ class DictationService : Service() {
                 "Your headset’s mic sent no sound. Try another headset, or turn off “Use my headset’s mic” in Settings.",
             )
             if (memo) headset?.say("Your headset's mic isn't sending any sound.")
+            return
+        }
+
+        if (audioOnly) {
+            saveRecording(file, durationMillis)
             return
         }
 
@@ -289,6 +319,22 @@ class DictationService : Service() {
             } catch (t: Throwable) {
                 Log.e(TAG, "processing failed", t)
                 setState(DictationState.error, t.message ?: "Something went wrong.")
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
+    private fun saveRecording(file: File, durationMillis: Long) {
+        setState(DictationState.idle, "")
+        scope.launch {
+            try {
+                val error = engine.save(file.absolutePath, durationMillis)["error"] as? String
+                if (error != null) setState(DictationState.error, error)
+                DictationBus.emit(mapOf("type" to "history"))
+            } catch (t: Throwable) {
+                Log.e(TAG, "saving the recording failed", t)
+                setState(DictationState.error, t.message ?: "Couldn't save the recording.")
             } finally {
                 file.delete()
             }
@@ -346,7 +392,7 @@ class DictationService : Service() {
     }
 
     private fun setState(state: DictationState, message: String) {
-        DictationBus.setState(state, message)
+        DictationBus.setState(state, message, audioOnly = state == DictationState.listening && recordingAudioOnly)
         PocketFlowAccessibilityService.onDictationStateChanged()
         updateNotification()
     }
@@ -441,6 +487,7 @@ class DictationService : Service() {
         private const val TAG = "PocketFlow"
         private const val ACTION_DISARM = "dev.markdid.pocketflow.DISARM"
         private const val ACTION_TOGGLE = "dev.markdid.pocketflow.TOGGLE"
+        private const val ACTION_TOGGLE_RECORDING = "dev.markdid.pocketflow.TOGGLE_RECORDING"
         private const val ACTION_START = "dev.markdid.pocketflow.START"
         private const val ACTION_STOP = "dev.markdid.pocketflow.STOP"
         private const val ACTION_WALK_ON = "dev.markdid.pocketflow.WALK_ON"
@@ -465,6 +512,7 @@ class DictationService : Service() {
         fun arm(context: Context) = send(context, null)
         fun disarm(context: Context) = send(context, ACTION_DISARM)
         fun toggle(context: Context) = send(context, ACTION_TOGGLE)
+        fun toggleRecording(context: Context) = send(context, ACTION_TOGGLE_RECORDING)
         fun start(context: Context) = send(context, ACTION_START)
         fun stop(context: Context) = send(context, ACTION_STOP)
         fun setWalkMode(context: Context, enabled: Boolean) = send(context, if (enabled) ACTION_WALK_ON else ACTION_WALK_OFF)

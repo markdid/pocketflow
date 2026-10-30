@@ -72,6 +72,10 @@ class MainActivity : FlutterActivity() {
                     DictationService.toggle(this)
                     result.success(null)
                 }
+                "toggleRecording" -> {
+                    DictationService.toggleRecording(this)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -120,6 +124,7 @@ class MainActivity : FlutterActivity() {
             "bluetoothMicAvailable" to BluetoothMicRouter(this).isAvailable(),
             "state" to bus.state.name,
             "message" to bus.message,
+            "audioOnly" to bus.audioOnly,
         )
     }
 

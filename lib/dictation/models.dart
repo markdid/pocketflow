@@ -74,6 +74,9 @@ enum DictationMode {
 
   /// Hands-free recording (e.g. walking with a headset) saved as a memo or draft.
   memo,
+
+  /// Audio saved on the device without transcribing; [HistoryEntry.text] stays empty until it's transcribed on request.
+  recording,
 }
 
 @MappableClass()
@@ -102,7 +105,8 @@ class HistoryEntry with HistoryEntryMappable {
   final String text;
   final String? appId;
 
-  /// Kept for memos so a recording can be re-transcribed, and for any recording whose transcription failed.
+  /// Kept for memos and recordings so they can be replayed or re-transcribed, and for any recording whose
+  /// transcription failed.
   /// Dictation audio is otherwise deleted after processing, unless [AppSettings.keepRecordings] is on.
   final String? audioPath;
   final int? audioMillis;
@@ -116,6 +120,9 @@ class HistoryEntry with HistoryEntryMappable {
   final String? error;
 
   bool get failed => error != null;
+
+  /// A recording saved without transcribing, not transcribed yet.
+  bool get untranscribed => mode == DictationMode.recording && text.isEmpty && error == null;
 }
 
 /// Something learned from a correction, reported back so the UI can show it and offer undo.

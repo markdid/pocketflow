@@ -258,6 +258,13 @@ class AndroidStatusMapper extends ClassMapperBase<AndroidStatus> {
     opt: true,
     def: '',
   );
+  static bool _$audioOnly(AndroidStatus v) => v.audioOnly;
+  static const Field<AndroidStatus, bool> _f$audioOnly = Field(
+    'audioOnly',
+    _$audioOnly,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<AndroidStatus> fields = const {
@@ -271,6 +278,7 @@ class AndroidStatusMapper extends ClassMapperBase<AndroidStatus> {
     #bluetoothMicAvailable: _f$bluetoothMicAvailable,
     #state: _f$state,
     #message: _f$message,
+    #audioOnly: _f$audioOnly,
   };
 
   static AndroidStatus _instantiate(DecodingData data) {
@@ -285,6 +293,7 @@ class AndroidStatusMapper extends ClassMapperBase<AndroidStatus> {
       bluetoothMicAvailable: data.dec(_f$bluetoothMicAvailable),
       state: data.dec(_f$state),
       message: data.dec(_f$message),
+      audioOnly: data.dec(_f$audioOnly),
     );
   }
 
@@ -361,6 +370,7 @@ abstract class AndroidStatusCopyWith<$R, $In extends AndroidStatus, $Out>
     bool? bluetoothMicAvailable,
     DictationState? state,
     String? message,
+    bool? audioOnly,
   });
   AndroidStatusCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -385,6 +395,7 @@ class _AndroidStatusCopyWithImpl<$R, $Out>
     bool? bluetoothMicAvailable,
     DictationState? state,
     String? message,
+    bool? audioOnly,
   }) => $apply(
     FieldCopyWithData({
       if (micPermission != null) #micPermission: micPermission,
@@ -401,6 +412,7 @@ class _AndroidStatusCopyWithImpl<$R, $Out>
         #bluetoothMicAvailable: bluetoothMicAvailable,
       if (state != null) #state: state,
       if (message != null) #message: message,
+      if (audioOnly != null) #audioOnly: audioOnly,
     }),
   );
   @override
@@ -427,6 +439,7 @@ class _AndroidStatusCopyWithImpl<$R, $Out>
     ),
     state: data.get(#state, or: $value.state),
     message: data.get(#message, or: $value.message),
+    audioOnly: data.get(#audioOnly, or: $value.audioOnly),
   );
 
   @override

@@ -117,8 +117,25 @@ class DictationPipeline {
     return _finish(settings, entry.copyWith(transcribeMillis: timer.elapsedMilliseconds), raw, audio, timer);
   }
 
-  /// Transcribes a recording kept after a failed attempt and fills in its history entry. On failure the entry keeps
-  /// the recording and the new error, and the error is rethrown.
+  /// Keeps [audio] in history without transcribing it, for [retry] to transcribe later on request.
+  Future<HistoryEntry> saveRecording({required File audio, int? audioMillis}) async {
+    final started = DateTime.now();
+    final entry = HistoryEntry(
+      id: started.microsecondsSinceEpoch.toString(),
+      createdAt: started,
+      mode: DictationMode.recording,
+      style: DictationStyle.memo,
+      rawText: '',
+      text: '',
+      audioPath: await _keepAudio(audio, started),
+      audioMillis: audioMillis,
+    );
+    await _history.save(entry);
+    return entry;
+  }
+
+  /// Transcribes a kept recording (a failed attempt, or one saved with [saveRecording]) and fills in its history
+  /// entry. On failure the entry keeps the recording and the new error, and the error is rethrown.
   Future<DictationResult> retry(String id) async {
     final timer = Stopwatch()..start();
     final entry = (await _history.load()).where((e) => e.id == id).firstOrNull;
@@ -140,8 +157,8 @@ class DictationPipeline {
       audio,
       timer,
     );
-    // Nothing was said after all.
-    if (result.entry == null) await _history.remove(id);
+    // Nothing was said after all. A saved recording stays, since the user chose to keep it.
+    if (result.entry == null && entry.mode != DictationMode.recording) await _history.remove(id);
     return result;
   }
 
@@ -190,7 +207,7 @@ class DictationPipeline {
     if (text.isEmpty) return const DictationResult(text: '', entry: null);
 
     await _vocabulary.recordHits(Vocabulary.termsUsedIn(text, vocabulary.terms).map((t) => t.term));
-    final keep = entry.mode == DictationMode.memo || settings.keepRecordings;
+    final keep = entry.mode != DictationMode.dictation || settings.keepRecordings;
     final kept = entry.audioPath;
     final finished = entry.copyWith(
       rawText: raw,
@@ -204,7 +221,7 @@ class DictationPipeline {
       'cleanup ${cleanupMillis == null ? 'skipped' : '$cleanupMillis ms'}',
     );
     await _history.save(finished);
-    // A retried dictation no longer needs its recording; memos keep theirs for replay.
+    // A retried dictation no longer needs its recording; memos and recordings keep theirs for replay.
     if (!keep && kept != null && File(kept).existsSync()) await File(kept).delete();
     return DictationResult(text: text, entry: finished, warning: warning);
   }

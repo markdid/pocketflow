@@ -77,6 +77,8 @@ class DictationModeMapper extends EnumMapper<DictationMode> {
         return DictationMode.dictation;
       case r'memo':
         return DictationMode.memo;
+      case r'recording':
+        return DictationMode.recording;
       default:
         throw MapperException.unknownEnumValue(value);
     }
@@ -89,6 +91,8 @@ class DictationModeMapper extends EnumMapper<DictationMode> {
         return r'dictation';
       case DictationMode.memo:
         return r'memo';
+      case DictationMode.recording:
+        return r'recording';
     }
   }
 }

@@ -59,6 +59,11 @@ class DictationEngine(context: Context) {
         return invoke("process", args) as? Map<*, *> ?: emptyMap<String, Any>()
     }
 
+    /** Keeps the recording in history without transcribing it. Returns `historyId`, or `error`. */
+    suspend fun save(path: String, audioMillis: Long): Map<*, *> =
+        invoke("save", mapOf("path" to path, "audioMillis" to audioMillis.toInt())) as? Map<*, *>
+            ?: emptyMap<String, Any>()
+
     /** Opens the API connection while the user is still speaking. */
     suspend fun warmUp() {
         invoke("warmUp", null)

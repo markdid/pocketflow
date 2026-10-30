@@ -7,6 +7,7 @@ environment:
   sdk: ^3.13.2
 
 dependencies:
+  audioplayers: ^6.8.1
   dart_mappable: ^4.10.0
   flutter:
     sdk: flutter
@@ -16,6 +17,7 @@ dependencies:
   http: ^1.6.0
   logger: ^2.8.0
   path_provider: ^2.1.6
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

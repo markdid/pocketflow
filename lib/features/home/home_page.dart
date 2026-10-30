@@ -14,6 +14,7 @@ import 'package:pocketflow/platform/desktop_dictation.dart';
 import 'package:pocketflow/platform/voice_level.dart';
 import 'package:pocketflow/router/router.dart';
 import 'package:pocketflow/ui/widgets/structure/view_shell.dart';
+import 'package:share_plus/share_plus.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -55,6 +56,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     final apiKey = ref.watch(settingsProvider).value?.apiKey ?? '';
     final bridge = ref.read(androidBridgeProvider);
     final statusNotifier = ref.read(androidStatusProvider.notifier);
+    final playback = ref.read(playbackProvider.notifier);
 
     return Scaffold(
       body: history.when(
@@ -64,6 +66,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
           state: activity.state,
           ready: activity.ready,
           message: activity.message,
+          audioOnly: activity.audioOnly,
           hint: desktop != null
               ? 'Or hold Right ⌥ Option in any app. Release to insert.'
               : 'Or use the bubble, the voice keyboard, the quick tile, or Caps Lock.',
@@ -80,6 +83,21 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
               bridge.toggleDictation();
             }
           },
+          onRecord: android == null && desktop == null
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  if (desktop != null) {
+                    ref.read(desktopDictationProvider.notifier).toggleRecording();
+                  } else {
+                    bridge.toggleRecording();
+                  }
+                },
+          playback: ref.watch(playbackProvider),
+          position: playback.position,
+          onPlay: playback.toggle,
+          onSeek: playback.seek,
+          onShare: (entry) => _share(context, entry),
           phone: android == null
               ? null
               : PhoneControls(
@@ -101,7 +119,7 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
   HomeStats _stats(List<HistoryEntry> entries, int learned) {
     var words = 0;
     var spokenMillis = 0;
-    for (final entry in entries.where((e) => !e.failed)) {
+    for (final entry in entries.where((e) => e.text.isNotEmpty)) {
       words += entry.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
       spokenMillis += entry.audioMillis ?? 0;
     }
@@ -170,11 +188,26 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
 
   Future<void> _retry(BuildContext context, HistoryEntry entry) async {
     try {
-      await ref.read(retryingProvider.notifier).retry(entry.id);
+      final text = await ref.read(retryingProvider.notifier).retry(entry.id);
+      if (text == null || text.isNotEmpty || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No speech found')));
     } on Exception catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
+  }
+
+  Future<void> _share(BuildContext context, HistoryEntry entry) async {
+    final path = entry.audioPath;
+    if (path == null) return;
+    // macOS anchors the share picker to a rect; the page will do.
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path, mimeType: 'audio/mp4')],
+        sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      ),
+    );
   }
 
   Future<void> _confirmDelete(BuildContext context, HistoryEntry entry) async {
@@ -189,6 +222,8 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
         ],
       ),
     );
-    if (confirmed == true) await ref.read(historyProvider.notifier).remove(entry.id);
+    if (confirmed != true) return;
+    await ref.read(playbackProvider.notifier).release(entry.id);
+    await ref.read(historyProvider.notifier).remove(entry.id);
   }
 }

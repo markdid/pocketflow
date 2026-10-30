@@ -52,6 +52,13 @@ class DesktopDictationStateMapper
     opt: true,
     def: false,
   );
+  static bool _$audioOnly(DesktopDictationState v) => v.audioOnly;
+  static const Field<DesktopDictationState, bool> _f$audioOnly = Field(
+    'audioOnly',
+    _$audioOnly,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<DesktopDictationState> fields = const {
@@ -59,6 +66,7 @@ class DesktopDictationStateMapper
     #message: _f$message,
     #accessibility: _f$accessibility,
     #microphone: _f$microphone,
+    #audioOnly: _f$audioOnly,
   };
 
   static DesktopDictationState _instantiate(DecodingData data) {
@@ -67,6 +75,7 @@ class DesktopDictationStateMapper
       message: data.dec(_f$message),
       accessibility: data.dec(_f$accessibility),
       microphone: data.dec(_f$microphone),
+      audioOnly: data.dec(_f$audioOnly),
     );
   }
 
@@ -145,6 +154,7 @@ abstract class DesktopDictationStateCopyWith<
     String? message,
     bool? accessibility,
     bool? microphone,
+    bool? audioOnly,
   });
   DesktopDictationStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -165,12 +175,14 @@ class _DesktopDictationStateCopyWithImpl<$R, $Out>
     String? message,
     bool? accessibility,
     bool? microphone,
+    bool? audioOnly,
   }) => $apply(
     FieldCopyWithData({
       if (state != null) #state: state,
       if (message != null) #message: message,
       if (accessibility != null) #accessibility: accessibility,
       if (microphone != null) #microphone: microphone,
+      if (audioOnly != null) #audioOnly: audioOnly,
     }),
   );
   @override
@@ -179,6 +191,7 @@ class _DesktopDictationStateCopyWithImpl<$R, $Out>
     message: data.get(#message, or: $value.message),
     accessibility: data.get(#accessibility, or: $value.accessibility),
     microphone: data.get(#microphone, or: $value.microphone),
+    audioOnly: data.get(#audioOnly, or: $value.audioOnly),
   );
 
   @override

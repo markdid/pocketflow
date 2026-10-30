@@ -46,6 +46,7 @@ class AndroidStatus with AndroidStatusMappable {
     this.bluetoothMicAvailable = false,
     this.state = DictationState.idle,
     this.message = '',
+    this.audioOnly = false,
   });
 
   final bool micPermission;
@@ -60,6 +61,9 @@ class AndroidStatus with AndroidStatusMappable {
   final bool bluetoothMicAvailable;
   final DictationState state;
   final String message;
+
+  /// The active recording is saved as audio without transcribing.
+  final bool audioOnly;
 }
 
 @MappableClass()
@@ -121,6 +125,7 @@ class AndroidBridge {
   Future<void> setArmed({required bool armed}) => _channel.invokeMethod('setArmed', {'value': armed});
   Future<void> setWalkMode({required bool enabled}) => _channel.invokeMethod('setWalkMode', {'value': enabled});
   Future<void> toggleDictation() => _channel.invokeMethod('toggleDictation');
+  Future<void> toggleRecording() => _channel.invokeMethod('toggleRecording');
 
   static Map<String, Object?> _stringKeys(Map<Object?, Object?>? map) => {
     for (final entry in (map ?? const {}).entries) entry.key.toString(): entry.value,

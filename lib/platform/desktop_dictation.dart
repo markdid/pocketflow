@@ -20,12 +20,16 @@ class DesktopDictationState with DesktopDictationStateMappable {
     this.message = '',
     this.accessibility = false,
     this.microphone = false,
+    this.audioOnly = false,
   });
 
   final DictationState state;
   final String message;
   final bool accessibility;
   final bool microphone;
+
+  /// The active recording is saved as audio without transcribing.
+  final bool audioOnly;
 }
 
 final desktopDictationProvider = NotifierProvider<DesktopDictationNotifier, DesktopDictationState?>(
@@ -91,6 +95,17 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
     }
   }
 
+  /// Starts or finishes a recording that's saved without transcribing. Leaves a dictation in progress alone.
+  Future<void> toggleRecording() async {
+    switch (state) {
+      case DesktopDictationState(state: DictationState.listening, audioOnly: true):
+        await _stop();
+      case DesktopDictationState(state: DictationState.idle || DictationState.error):
+        _latched = true;
+        await _start(audioOnly: true);
+    }
+  }
+
   void _onEvent(Map<Object?, Object?> event) {
     final current = state;
     if (current == null) return;
@@ -117,9 +132,9 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
     }
   }
 
-  Future<void> _start() async {
+  Future<void> _start({bool audioOnly = false}) async {
     _finishWatch();
-    _appId = await _channel.invokeMethod<String>('frontmostApp');
+    _appId = audioOnly ? null : await _channel.invokeMethod<String>('frontmostApp');
     final path = '${(await getTemporaryDirectory()).path}/pocketflow_${DateTime.now().millisecondsSinceEpoch}.m4a';
     final started = await _channel.invokeMethod<bool>('startRecording', {'path': path}) ?? false;
     if (!started) {
@@ -127,8 +142,8 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
       return;
     }
     _audioPath = path;
-    _setState(DictationState.listening, 'Listening…');
-    unawaited(ref.read(dictationPipelineProvider).warmUp());
+    _setState(DictationState.listening, audioOnly ? 'Recording…' : 'Listening…', audioOnly: audioOnly);
+    if (!audioOnly) unawaited(ref.read(dictationPipelineProvider).warmUp());
   }
 
   Future<void> _cancel() async {
@@ -146,6 +161,7 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
       _setState(DictationState.idle, '');
       return;
     }
+    if (state?.audioOnly ?? false) return _saveRecording(path, millis);
     _setState(DictationState.transcribing, 'Writing…');
     try {
       final result = await ref
@@ -168,6 +184,21 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
       _setState(DictationState.error, e.toString());
     } finally {
       _deleteAudio();
+    }
+  }
+
+  Future<void> _saveRecording(String path, int millis) async {
+    _audioPath = null; // a new recording can start while this one is copied
+    _setState(DictationState.idle, '');
+    final audio = File(path);
+    try {
+      await ref.read(dictationPipelineProvider).saveRecording(audio: audio, audioMillis: millis);
+      unawaited(ref.read(historyProvider.notifier).refresh());
+    } on Exception catch (e, stack) {
+      LoggerService.e('Saving a recording failed', e, stack);
+      _setState(DictationState.error, e.toString());
+    } finally {
+      if (audio.existsSync()) audio.deleteSync();
     }
   }
 
@@ -211,14 +242,20 @@ class DesktopDictationNotifier extends Notifier<DesktopDictationState?> {
     if (path != null && File(path).existsSync()) File(path).deleteSync();
   }
 
-  void _setState(DictationState dictation, String message) {
-    _update(state: dictation, message: message);
+  void _setState(DictationState dictation, String message, {bool audioOnly = false}) {
+    _update(state: dictation, message: message, audioOnly: audioOnly);
     unawaited(_channel.invokeMethod<void>('setStatus', {'state': dictation.name}));
   }
 
-  void _update({DictationState? state, String? message, bool? accessibility, bool? microphone}) {
+  void _update({DictationState? state, String? message, bool? accessibility, bool? microphone, bool? audioOnly}) {
     final current = this.state;
     if (current == null) return;
-    this.state = current.copyWith(state: state, message: message, accessibility: accessibility, microphone: microphone);
+    this.state = current.copyWith(
+      state: state,
+      message: message,
+      accessibility: accessibility,
+      microphone: microphone,
+      audioOnly: audioOnly,
+    );
   }
 }

@@ -35,6 +35,17 @@ Future<void> runDictationEngine() async {
           LoggerService.e('Dictation failed', e, stack);
           return {'error': e.toString()};
         }
+      case 'save':
+        try {
+          final entry = await pipeline.saveRecording(
+            audio: File(args['path']! as String),
+            audioMillis: args['audioMillis'] as int?,
+          );
+          return {'historyId': entry.id};
+        } on Exception catch (e, stack) {
+          LoggerService.e('Saving a recording failed', e, stack);
+          return {'error': e.toString()};
+        }
       case 'warmUp':
         await pipeline.warmUp();
         return null;
