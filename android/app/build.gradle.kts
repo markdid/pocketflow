@@ -49,4 +49,7 @@ flutter {
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Galaxy Watch companion: recordings arrive over the Wearable Data Layer and are processed in a WorkManager job.
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 }

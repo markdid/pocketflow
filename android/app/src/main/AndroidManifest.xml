@@ -78,6 +78,16 @@
             android:name=".dictation.AudioImportService"
             android:exported="true" />
 
+        <!-- Recordings from the PocketFlow watch app (android/wear). -->
+        <service
+            android:name=".wear.WatchListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/pocketflow/recording" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".dictation.DictationTileService"
             android:exported="true"
