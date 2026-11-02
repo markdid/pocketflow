@@ -2,6 +2,7 @@ package dev.markdid.pocketflow.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -102,28 +103,34 @@ class PocketFlowAccessibilityService : AccessibilityService() {
     private fun updateBubble() {
         if (!::bubble.isInitialized) return
         val settings = PocketFlowApp.instance.settings
-        val focus = runCatching { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
-        val pkg = focus?.packageName?.toString()
+        // Searches every window, not just the active one, which is often stale or the keyboard itself.
+        val focus = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
+        val pkg = focus?.packageName?.toString() ?: focusedPackage()
+        // An open on-screen keyboard means something takes text, even when the editor doesn't expose itself as an
+        // editable field (Quill and other custom editors, some web views). A hardware keyboard has no window to go
+        // by, so there the focused field has to be editable.
+        val wantsText = if (hasHardwareKeyboard(resources.configuration)) {
+            focus != null && focus.isEditable
+        } else {
+            softKeyboardVisible()
+        }
         val show = settings.bubble &&
             settings.armed &&
-            focus != null &&
-            focus.isEditable &&
-            !focus.isPassword &&
+            wantsText &&
+            focus?.isPassword != true &&
             pkg != packageName &&
-            keyboardVisible() &&
             // The PocketFlow keyboard has its own mic.
             dev.markdid.pocketflow.ime.PocketFlowImeService.editorPackage() == null
         if (show) bubble.show() else if (!DictationBus.isBusy) bubble.hide()
     }
 
-    /**
-     * The bubble follows the keyboard: a field can stay focused after its keyboard is dismissed, and the bubble
-     * should go away with the keyboard. With a hardware keyboard there's no on-screen keyboard to wait for.
-     */
-    private fun keyboardVisible(): Boolean {
-        if (hasHardwareKeyboard(resources.configuration)) return true
-        return runCatching { windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } }.getOrDefault(true)
-    }
+    /** The bubble follows the keyboard: a field can stay focused after its keyboard is dismissed. */
+    private fun softKeyboardVisible(): Boolean = runCatching {
+        val bounds = Rect()
+        windows.any {
+            it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD && bounds.also(it::getBoundsInScreen).height() > 0
+        }
+    }.getOrDefault(true)
 
     private fun hasHardwareKeyboard(config: Configuration) =
         config.keyboard == Configuration.KEYBOARD_QWERTY &&
