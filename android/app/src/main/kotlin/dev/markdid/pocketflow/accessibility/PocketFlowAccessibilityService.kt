@@ -105,22 +105,16 @@ class PocketFlowAccessibilityService : AccessibilityService() {
         val settings = PocketFlowApp.instance.settings
         // Searches every window, not just the active one, which is often stale or the keyboard itself.
         val focus = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
-        val pkg = focus?.packageName?.toString() ?: focusedPackage()
-        // An open on-screen keyboard means something takes text, even when the editor doesn't expose itself as an
-        // editable field (Quill and other custom editors, some web views). A hardware keyboard has no window to go
-        // by, so there the focused field has to be editable.
-        val wantsText = if (hasHardwareKeyboard(resources.configuration)) {
-            focus != null && focus.isEditable
-        } else {
-            softKeyboardVisible()
-        }
-        val show = settings.bubble &&
-            settings.armed &&
-            wantsText &&
-            focus?.isPassword != true &&
-            pkg != packageName &&
-            // The PocketFlow keyboard has its own mic.
-            dev.markdid.pocketflow.ime.PocketFlowImeService.editorPackage() == null
+        val hardwareKeyboard = hasHardwareKeyboard(resources.configuration)
+        val show = shouldShowBubble(
+            enabled = settings.bubble && settings.armed,
+            hardwareKeyboard = hardwareKeyboard,
+            softKeyboardVisible = !hardwareKeyboard && softKeyboardVisible(),
+            focusEditable = focus?.isEditable == true,
+            focusPassword = focus?.isPassword == true,
+            ownApp = (focus?.packageName?.toString() ?: focusedPackage()) == packageName,
+            pocketFlowKeyboard = dev.markdid.pocketflow.ime.PocketFlowImeService.editorPackage() != null,
+        )
         if (show) bubble.show() else if (!DictationBus.isBusy) bubble.hide()
     }
 
@@ -286,6 +280,24 @@ class PocketFlowAccessibilityService : AccessibilityService() {
         private var instance: PocketFlowAccessibilityService? = null
 
         fun isEnabled(): Boolean = instance != null
+
+        /**
+         * An open on-screen keyboard means something takes text, even when the editor doesn't expose itself as an
+         * editable field (Quill and other custom editors, some web views). A hardware keyboard has no window to go
+         * by, so there the focused field has to be editable. The PocketFlow keyboard has its own mic.
+         */
+        internal fun shouldShowBubble(
+            enabled: Boolean,
+            hardwareKeyboard: Boolean,
+            softKeyboardVisible: Boolean,
+            focusEditable: Boolean,
+            focusPassword: Boolean,
+            ownApp: Boolean,
+            pocketFlowKeyboard: Boolean,
+        ): Boolean {
+            val wantsText = if (hardwareKeyboard) focusEditable else softKeyboardVisible
+            return enabled && wantsText && !focusPassword && !ownApp && !pocketFlowKeyboard
+        }
 
         private fun notifyStatusChanged() = DictationBus.emit(mapOf("type" to "status"))
 

@@ -52,4 +52,5 @@ dependencies {
     // Galaxy Watch companion: recordings arrive over the Wearable Data Layer and are processed in a WorkManager job.
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    testImplementation("junit:junit:4.13.2")
 }
