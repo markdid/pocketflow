@@ -16,23 +16,25 @@ import dev.markdid.pocketflow.BubbleStyle
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.dictation.DictationService
 import dev.markdid.pocketflow.dictation.DictationState
-import dev.markdid.pocketflow.ui.DropletView
+import dev.markdid.pocketflow.ui.BubbleView
+import dev.markdid.pocketflow.ui.OrbView
 import kotlin.math.abs
 
 /**
  * Floating dictation bubble drawn as an accessibility overlay (no "draw over other apps" permission needed). Tap to
  * start, tap again to finish; drag to move it along the screen edge.
  *
- * Drawn as a water droplet ([DropletView]): clear with a small mic at rest, filled blue with live level bars while
- * listening, and the resting drop with a spinning blue ring while writing. Light or dark rim, by default following the
- * system dark mode.
+ * At rest it's the subtle pearl orb with a small mic, a little translucent. While listening it cross-fades to a solid
+ * blue button with live level bars that reads on any screen; while writing it is the resting orb with a spinning blue
+ * ring. Pearl or graphite, by default following the system dark mode.
  */
 class MicBubble(private val service: AccessibilityService, private val onTap: () -> Unit) {
     private val windowManager = service.getSystemService(WindowManager::class.java)
     private val prefs = service.getSharedPreferences("pocketflow_bubble", Context.MODE_PRIVATE)
     private val size = dp(78)
     private var view: FrameLayout? = null
-    private var droplet: DropletView? = null
+    private var orb: OrbView? = null
+    private var button: BubbleView? = null
     private var state = DictationState.idle
 
     private val params = WindowManager.LayoutParams(
@@ -49,27 +51,35 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
 
     fun show() {
         if (view != null) return
-        val drop = DropletView(service).apply { levelProvider = { DictationService.levelSource?.invoke() ?: 0f } }
+        val level = { DictationService.levelSource?.invoke() ?: 0f }
+        val restingOrb = OrbView(service).apply { levelProvider = level }
+        val busyButton = BubbleView(service).apply {
+            levelProvider = level
+            alpha = 0f
+        }
         val container = FrameLayout(service).apply {
             contentDescription = "Dictate with PocketFlow"
-            addView(drop, FrameLayout.LayoutParams(size, size))
+            addView(restingOrb, FrameLayout.LayoutParams(size, size))
+            addView(busyButton, FrameLayout.LayoutParams(size, size))
             scaleX = 0.4f
             scaleY = 0.4f
             alpha = 0f
         }
         attachTouch(container)
         view = container
-        droplet = drop
+        orb = restingOrb
+        button = busyButton
         render(state)
         runCatching { windowManager.addView(container, params) }.onFailure { view = null }
-        container.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320)
+        container.animate().scaleX(1f).scaleY(1f).alpha(restingAlpha()).setDuration(320)
             .setInterpolator(OvershootInterpolator(1.6f)).start()
     }
 
     fun hide() {
         val current = view ?: return
         view = null
-        droplet = null
+        orb = null
+        button = null
         current.animate().scaleX(0.4f).scaleY(0.4f).alpha(0f).setDuration(180).withEndAction {
             runCatching { windowManager.removeView(current) }
         }.start()
@@ -77,22 +87,35 @@ class MicBubble(private val service: AccessibilityService, private val onTap: ()
 
     fun render(state: DictationState) {
         this.state = state
-        val drop = droplet ?: return
-        drop.dark = when (PocketFlowApp.instance.settings.bubbleStyle) {
+        val container = view ?: return
+        val dark = when (PocketFlowApp.instance.settings.bubbleStyle) {
             BubbleStyle.light -> false
             BubbleStyle.dark -> true
             BubbleStyle.auto -> (service.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
         }
-        drop.mode = when (state) {
-            DictationState.listening -> DropletView.Mode.LISTENING
-            DictationState.transcribing -> DropletView.Mode.PROCESSING
-            else -> DropletView.Mode.IDLE
+        // Listening swaps to the solid blue button; writing keeps the resting orb and adds a spinning ring.
+        val busy = state == DictationState.listening
+        orb?.apply {
+            this.dark = dark
+            mode = if (state == DictationState.transcribing) OrbView.Mode.PROCESSING else OrbView.Mode.IDLE
+            paused = busy
+            animate().alpha(if (busy) 0f else 1f).setDuration(180).start()
         }
+        button?.apply {
+            this.dark = dark
+            paused = !busy
+            animate().alpha(if (busy) 1f else 0f).setDuration(180).start()
+        }
+        container.animate().alpha(restingAlpha()).setDuration(200).start()
     }
 
+    /** Slightly see-through at rest so it doesn't cover what's beneath; fully solid while it's working. */
+    private fun restingAlpha() = if (state == DictationState.listening || state == DictationState.transcribing) 1f else 0.9f
+
     private fun squeeze(pressed: Boolean) {
-        droplet?.squeezed = pressed
+        orb?.squeezed = pressed
+        button?.squeezed = pressed
     }
 
     @SuppressLint("ClickableViewAccessibility")
