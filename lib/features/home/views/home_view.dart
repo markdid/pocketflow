@@ -31,17 +31,19 @@ class HomeStats {
 class PhoneControls {
   const PhoneControls({
     required this.armed,
-    required this.walkMode,
+    required this.headsetMic,
     required this.headsetAvailable,
     required this.onArmedChanged,
-    required this.onWalkModeChanged,
+    required this.onHeadsetMicChanged,
   });
 
   final bool armed;
-  final bool walkMode;
+
+  /// Record through connected Bluetooth headphones' mic.
+  final bool headsetMic;
   final bool headsetAvailable;
   final ValueChanged<bool> onArmedChanged;
-  final ValueChanged<bool> onWalkModeChanged;
+  final ValueChanged<bool> onHeadsetMicChanged;
 }
 
 class HomeView extends StatelessWidget {
@@ -134,7 +136,7 @@ class HomeView extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
                 _StatsRow(stats: stats),
-                if (phone != null) ...[const SizedBox(height: 14), _WalkModeCard(phone: phone)],
+                if (phone != null) ...[const SizedBox(height: 14), _HeadsetMicCard(phone: phone)],
                 const SizedBox(height: 36),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -393,15 +395,15 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _WalkModeCard extends StatelessWidget {
-  const _WalkModeCard({required this.phone});
+class _HeadsetMicCard extends StatelessWidget {
+  const _HeadsetMicCard({required this.phone});
 
   final PhoneControls phone;
 
   @override
   Widget build(BuildContext context) {
     return SurfaceCard(
-      onTap: () => phone.onWalkModeChanged(!phone.walkMode),
+      onTap: () => phone.onHeadsetMicChanged(!phone.headsetMic),
       padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
       child: Row(
         children: [
@@ -410,12 +412,12 @@ class _WalkModeCard extends StatelessWidget {
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: phone.walkMode ? AppColors.accent.withValues(alpha: 0.1) : AppColors.surfaceHigh,
+              color: phone.headsetMic ? AppColors.accent.withValues(alpha: 0.1) : AppColors.surfaceHigh,
             ),
             child: Icon(
               Icons.headphones_rounded,
               size: 22,
-              color: phone.walkMode ? AppColors.accent : AppColors.textMuted,
+              color: phone.headsetMic ? AppColors.accent : AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 14),
@@ -423,18 +425,16 @@ class _WalkModeCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Walk mode', style: AppThemeData.geist(16, weight: 580)),
+                Text('Use Bluetooth headphones', style: AppThemeData.geist(16, weight: 580)),
                 const SizedBox(height: 3),
                 Text(
-                  phone.headsetAvailable
-                      ? 'Press your headset button to record a memo. Phone stays in your pocket.'
-                      : 'Connect a Bluetooth headset, then press its button to record a memo.',
+                  phone.headsetAvailable ? 'Connected' : 'Not connected',
                   style: AppThemeData.geist(13, color: AppColors.textMuted, height: 1.35),
                 ),
               ],
             ),
           ),
-          Switch(value: phone.walkMode, onChanged: phone.onWalkModeChanged),
+          Switch(value: phone.headsetMic, onChanged: phone.onHeadsetMicChanged),
         ],
       ),
     );
@@ -816,10 +816,10 @@ Widget homeViewPreview() => HomeView(
   onShare: (_) {},
   phone: PhoneControls(
     armed: true,
-    walkMode: true,
+    headsetMic: true,
     headsetAvailable: true,
     onArmedChanged: (_) {},
-    onWalkModeChanged: (_) {},
+    onHeadsetMicChanged: (_) {},
   ),
 );
 

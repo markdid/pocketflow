@@ -53,7 +53,9 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
     final desktop = ref.watch(desktopDictationProvider);
     final activity = ref.watch(dictationActivityProvider);
     final learned = ref.watch(vocabularyProvider).value?.terms.where((t) => t.source == TermSource.learned).length;
-    final apiKey = ref.watch(settingsProvider).value?.apiKey ?? '';
+    final settings = ref.watch(settingsProvider).value;
+    final apiKey = settings?.apiKey ?? '';
+    final device = settings?.device;
     final bridge = ref.read(androidBridgeProvider);
     final statusNotifier = ref.read(androidStatusProvider.notifier);
     final playback = ref.read(playbackProvider.notifier);
@@ -98,14 +100,15 @@ class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver
           onPlay: playback.toggle,
           onSeek: playback.seek,
           onShare: (entry) => _share(context, entry),
-          phone: android == null
+          phone: android == null || device == null
               ? null
               : PhoneControls(
                   armed: android.armed,
-                  walkMode: android.walkMode,
+                  headsetMic: device.bluetoothMic,
                   headsetAvailable: android.bluetoothMicAvailable,
                   onArmedChanged: (value) => statusNotifier.setArmed(armed: value),
-                  onWalkModeChanged: (value) => statusNotifier.setWalkMode(enabled: value),
+                  onHeadsetMicChanged: (value) =>
+                      ref.read(settingsProvider.notifier).updateDevice(device.copyWith(bluetoothMic: value)),
                 ),
           onCopy: (entry) => _copy(context, entry),
           onRetry: (entry) => _retry(context, entry),

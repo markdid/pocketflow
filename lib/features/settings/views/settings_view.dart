@@ -24,6 +24,8 @@ class SettingsView extends StatelessWidget {
     required this.onApiKeyChanged,
     this.device,
     this.onDeviceChanged,
+    this.walkMode = false,
+    this.onWalkModeChanged,
   });
 
   final AppSettings settings;
@@ -32,11 +34,14 @@ class SettingsView extends StatelessWidget {
   final ValueChanged<String> onApiKeyChanged;
   final AndroidDeviceSettings? device;
   final ValueChanged<AndroidDeviceSettings>? onDeviceChanged;
+  final bool walkMode;
+  final ValueChanged<bool>? onWalkModeChanged;
 
   @override
   Widget build(BuildContext context) {
     final device = this.device;
     final onDeviceChanged = this.onDeviceChanged;
+    final onWalkModeChanged = this.onWalkModeChanged;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 12, 20, 140),
@@ -134,12 +139,8 @@ class SettingsView extends StatelessWidget {
                   options: {for (final style in BubbleStyle.values) style.name: style.label},
                   onChanged: (value) => onDeviceChanged(device.copyWith(bubbleStyle: BubbleStyle.values.byName(value))),
                 ),
-                _SwitchRow(
-                  title: 'Use my headset’s mic',
-                  subtitle: 'Records through a connected Bluetooth headset, like a phone call.',
-                  value: device.bluetoothMic,
-                  onChanged: (value) => onDeviceChanged(device.copyWith(bluetoothMic: value)),
-                ),
+                if (onWalkModeChanged != null)
+                  _SwitchRow(title: 'Walk mode', value: walkMode, onChanged: onWalkModeChanged),
                 _PickerRow(
                   title: 'Walk mode stops after silence',
                   value: device.walkAutoStopSeconds.toString(),
@@ -219,10 +220,10 @@ class _Section extends StatelessWidget {
 }
 
 class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({required this.title, required this.subtitle, required this.value, required this.onChanged});
+  const _SwitchRow({required this.title, this.subtitle, required this.value, required this.onChanged});
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -241,8 +242,10 @@ class _SwitchRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: AppThemeData.geist(15.5, weight: 560)),
-                    const SizedBox(height: 3),
-                    Text(subtitle, style: AppThemeData.geist(13, color: AppColors.textMuted, height: 1.4)),
+                    if (subtitle case final subtitle?) ...[
+                      const SizedBox(height: 3),
+                      Text(subtitle, style: AppThemeData.geist(13, color: AppColors.textMuted, height: 1.4)),
+                    ],
                   ],
                 ),
               ),
@@ -426,4 +429,6 @@ Widget settingsViewPreview() => SettingsView(
   onApiKeyChanged: (_) {},
   device: const AndroidDeviceSettings(),
   onDeviceChanged: (_) {},
+  walkMode: true,
+  onWalkModeChanged: (_) {},
 );

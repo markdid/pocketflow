@@ -2,12 +2,20 @@
 
 Open-source voice dictation for Android and macOS. Speak anywhere you can type and get clean, finished text: filler words gone, self-corrections applied, names spelled the way you spell them.
 
+### What sets it apart
+
+- **Records through your Bluetooth headphones.** PocketFlow opens your earbuds' call-audio mic, so you can dictate or record a memo with the phone in your pocket. In **walk mode**, press the headphones' play button, talk, press again: you get a written-up memo or email draft and a spoken "Memo saved". If no audio is detected after four seconds, a toast warns you while recording continues.
+- **Fast.** The API connection opens while you're still talking, audio is compressed as it's recorded so there's almost nothing left to upload when you stop, and short phrases that are already clean skip the cleanup call. Defaults to Groq for its very fast Whisper.
+- **Retry failed transcriptions.** No signal, API down, or rate limited: the audio stays on your phone and the History has a retry button. Watch memos retry on their own.
+- **Galaxy Watch app.** Open it and talk; the memo lands on your phone. With headphones connected, the phone records through them instead.
+- **Open source and private.** No account, no server, no telemetry. Audio goes only to the API you choose, with your own key. By default, successful dictations discard their audio; phone memos keep recordings for playback, and failed transcriptions keep audio for retry. Free with Groq's free tier, or use any OpenAI-compatible API.
+- **Types into remote desktops.** RustDesk only reacts to real key presses, so PocketFlow types into it key by key, with a hold-to-talk Caps Lock hotkey on hardware keyboards.
+
+### And the basics, done well
+
 - **Cleanup that keeps your voice.** "Let's meet Thursday, no wait, Friday, um, after lunch" becomes "Let's meet Friday after lunch." Questions you dictate are written down, never answered.
 - **Learns your vocabulary.** Fix a misheard name right after dictating and PocketFlow remembers it. Names and terms are sent as hints to the speech model, and recurring mishearings become automatic replacements.
 - **Fits the app you're in.** Email gets a greeting line and paragraphs, chat stays casual, terminals and code editors keep symbols and flags exact.
-- **Walk mode (Android).** Press your Bluetooth headset's button, talk, press again. PocketFlow records through the headset mic, writes up a memo or email draft, and tells you when it's saved. The phone stays in your pocket.
-- **Bring your own key.** Uses Groq's free tier by default (Whisper large v3 turbo plus GPT-OSS for cleanup), or any OpenAI-compatible API. No account, no server, no telemetry.
-- **Galaxy Watch companion (optional).** Open the watch app, talk, and the memo lands on your phone.
 
 ## Install
 
@@ -42,7 +50,7 @@ Tell me exactly what to tap at each step, wait for me, and check each install su
 | Anywhere | Floating mic bubble next to the focused text field | Hold **Right ⌥ Option**, release to insert. Or tap to start, tap again to stop |
 | Keyboard | PocketFlow voice keyboard (switch to it from any keyboard) | |
 | Shortcuts | Quick Settings tile, notification button, hardware keyboard hotkey (Caps Lock by default) | |
-| Hands-free | Walk mode: headset button starts and stops a memo | |
+| Hands-free | Walk mode: headphones button starts and stops a memo | |
 
 ## Setup
 
@@ -55,15 +63,15 @@ Tell me exactly what to tap at each step, wait for me, and check each install su
 
 ### Walk mode
 
-Turn on **Walk mode** on the Home tab or from the notification. Then, with a Bluetooth headset connected:
+Turn on **Walk mode** in Settings or from the notification. Then, with Bluetooth headphones connected:
 
-1. Press the headset's play/pause button. You'll hear a beep.
+1. Press the headphones' play/pause button. You'll hear a beep.
 2. Talk. Start with "email to Dana…" or "note for the launch plan…" to shape the result.
 3. Press the button again, or set **Stop after silence** in Settings.
 
 You'll hear "Memo saved" (or "Email draft saved"), and a notification lets you share the text. Memos also appear in the History on the Home tab, and their recordings stay on the device.
 
-Android sends headset buttons to the app that last played audio. If music was playing, the button controls the music until PocketFlow plays its next cue.
+Android sends headphone buttons to the app that last played audio. If music was playing, the button controls the music until PocketFlow plays its next cue.
 
 ### Remote desktops (RustDesk)
 
@@ -95,7 +103,7 @@ audio ─▶ Whisper (vocabulary as hints) ─▶ replacement rules ─▶ clean
 
 The pipeline is shared Dart code in `lib/dictation/`. Platform code records audio and delivers text:
 
-- **Android** (`android/app/src/main/kotlin`): a foreground service records, optionally through the headset's call-audio link, and runs the Dart pipeline in a headless Flutter engine. Text reaches apps through the accessibility service, the keyboard, or key events for remote desktops.
+- **Android** (`android/app/src/main/kotlin`): a foreground service records, optionally through Bluetooth headphones' call-audio link, and runs the Dart pipeline in a headless Flutter engine. Text reaches apps through the accessibility service, the keyboard, or key events for remote desktops.
 - **macOS** (`macos/Runner/MainFlutterWindow.swift`): a global key monitor, an audio recorder, a pasteboard-and-Cmd+V paste, and Accessibility reads of the focused field.
 
 ## Development

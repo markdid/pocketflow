@@ -254,11 +254,11 @@ class DictationService : Service() {
             setState(
                 DictationState.listening,
                 when {
-                    audioOnly && useHeadset -> "Recording with your headset mic…"
+                    audioOnly && useHeadset -> "Recording with your Bluetooth headphones…"
                     audioOnly -> "Recording…"
-                    memo && useHeadset -> "Recording memo with your headset mic…"
+                    memo && useHeadset -> "Recording memo with your Bluetooth headphones…"
                     memo -> "Recording memo…"
-                    useHeadset -> "Listening through your headset…"
+                    useHeadset -> "Listening through your Bluetooth headphones…"
                     else -> "Listening…"
                 },
             )
@@ -342,12 +342,10 @@ class DictationService : Service() {
         if (throughHeadset && polledWithSound < 2) {
             Log.w(TAG, "headset sent no sound for $durationMillis ms")
             file.delete()
-            setState(
-                DictationState.error,
-                "Your headset’s mic sent no sound. Try another headset, or turn off “Use my headset’s mic” in Settings.",
-            )
-            if (memo) memoVoice?.say("Your headset's mic isn't sending any sound.")
-            session?.let { WatchRemote.result(this, it.node, it.id, "", "Your headset’s mic sent no sound.") }
+            vibrate(longArrayOf(0, 300, 150, 300, 150, 300))
+            setState(DictationState.error, "No sound from your Bluetooth headphones. Turn off “Use Bluetooth headphones” on Home.")
+            if (memo) memoVoice?.say("No sound from your headphones' mic.")
+            session?.let { WatchRemote.result(this, it.node, it.id, "", "No sound from your Bluetooth headphones.") }
             return
         }
 
@@ -500,7 +498,7 @@ class DictationService : Service() {
         val status = DictationBus.status.value
         val text = when {
             status.message.isNotEmpty() -> status.message
-            settings.walkMode -> "Walk mode: press your headset button to record a memo."
+            settings.walkMode -> "Walk mode: press your headphones’ play button to record a memo."
             else -> "Ready. Use the bubble, keyboard, or hotkey to dictate."
         }
         val listening = status.state == DictationState.listening
@@ -585,6 +583,7 @@ class DictationService : Service() {
         private const val REQUEST_SHARE = 10
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_RECORDING_MS = 60 * 60 * 1000L
+
         /** Warn once after a quiet start, while leaving the microphone running. */
         private const val HEADSET_WARNING_MS = 4_000L
         private const val SPEECH_LEVEL = 0.08f

@@ -34,6 +34,7 @@ Future<void> _pump(
   Set<String> retrying = const {},
   ValueChanged<HistoryEntry>? onCopy,
   ValueChanged<HistoryEntry>? onRetry,
+  PhoneControls? phone,
 }) async {
   // Wide enough for the Ahem test font, whose glyphs are full squares.
   tester.view.physicalSize = const Size(800, 2000);
@@ -57,6 +58,7 @@ Future<void> _pump(
           onCopy: onCopy ?? (_) {},
           onRetry: onRetry ?? (_) {},
           onDelete: (_) {},
+          phone: phone,
         ),
       ),
     ),
@@ -66,6 +68,29 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('the Bluetooth card toggles the mic setting without arming dictation', (tester) async {
+    bool? headsetMic;
+    var armedChanges = 0;
+    await _pump(
+      tester,
+      phone: PhoneControls(
+        armed: false,
+        headsetMic: true,
+        headsetAvailable: false,
+        onArmedChanged: (_) => armedChanges++,
+        onHeadsetMicChanged: (value) => headsetMic = value,
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Use Bluetooth headphones'));
+    await tester.tap(find.text('Use Bluetooth headphones'));
+
+    expect(headsetMic, isFalse);
+    expect(armedChanges, 0);
+    expect(find.text('Not connected'), findsOneWidget);
+    expect(find.text('Walk mode'), findsNothing);
+  });
+
   testWidgets('tapping a transcribed entry copies it', (tester) async {
     HistoryEntry? copied;
     await _pump(tester, history: [_done], onCopy: (entry) => copied = entry);
