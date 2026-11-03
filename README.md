@@ -16,7 +16,7 @@ Open-source voice dictation for Android and macOS. Speak anywhere you can type a
 **Or let Claude do it.** Paste this into [Claude Code](https://claude.com/claude-code) on a computer:
 
 ```text
-Install PocketFlow (https://github.com/markdid/pocketflow-app) on my Android phone, and on my Wear OS watch if I
+Install PocketFlow (https://github.com/markdid/pocketflow) on my Android phone, and on my Wear OS watch if I
 say I have one.
 
 1. Download pocketflow.apk and pocketflow-watch.apk from the latest GitHub release. Install adb if it's missing
