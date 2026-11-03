@@ -17,6 +17,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -268,12 +269,15 @@ class DictationService : Service() {
 
     /**
      * Never record forever: an hour of 32 kbps AAC (~15 MB) stays under the API's 25 MB upload limit. In walk mode,
-     * also stop once the speaker has gone quiet.
+     * also stop once the speaker has gone quiet. Warn once if a headset has sent no sound after a few seconds,
+     * without interrupting the recording.
      */
     private fun watchForSilence(capture: AudioCapture, memo: Boolean) {
         silenceJob?.cancel()
         silenceJob = scope.launch {
             val stopAfter = if (memo) settings.walkAutoStopSeconds * 1000L else 0L
+            val checkHeadset = throughHeadset
+            var warnedAboutSilence = false
             var heardSpeech = false
             var quietSince = 0L
             while (isActive && recorder === capture) {
@@ -281,6 +285,12 @@ class DictationService : Service() {
                 if (capture.durationMillis > MAX_RECORDING_MS) break
                 val level = capture.level()
                 if (level > SOUND_LEVEL) polledWithSound++
+                if (checkHeadset && !warnedAboutSilence && polledWithSound < 2 &&
+                    capture.durationMillis >= HEADSET_WARNING_MS
+                ) {
+                    warnedAboutSilence = true
+                    Toast.makeText(this@DictationService, "No audio heard from Bluetooth headphones", Toast.LENGTH_LONG).show()
+                }
                 if (stopAfter <= 0) continue
                 val loud = level > SPEECH_LEVEL
                 val now = System.currentTimeMillis()
@@ -575,6 +585,8 @@ class DictationService : Service() {
         private const val REQUEST_SHARE = 10
         private const val MIN_AUDIO_MS = 400L
         private const val MAX_RECORDING_MS = 60 * 60 * 1000L
+        /** Warn once after a quiet start, while leaving the microphone running. */
+        private const val HEADSET_WARNING_MS = 4_000L
         private const val SPEECH_LEVEL = 0.08f
 
         /** Well under speech, well over a headset link that carries silence (about -80 dBFS). */
