@@ -19,14 +19,29 @@ android {
         // Wear OS 3 (Galaxy Watch 4 and later).
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // Same version as the phone app, so a release's two APKs match.
+        val pubspecVersion =
+            rootProject.file("../pubspec.yaml").readLines().first { it.startsWith("version:") }.substringAfter(":").trim()
+        versionCode = pubspecVersion.substringAfter("+").toInt()
+        versionName = pubspecVersion.substringBefore("+")
+    }
+
+    signingConfigs {
+        // CI release builds sign with the PocketFlow release key; local builds fall back to the debug key.
+        System.getenv("POCKETFLOW_KEYSTORE")?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("POCKETFLOW_KEYSTORE_PASSWORD")
+                keyAlias = "pocketflow"
+                keyPassword = System.getenv("POCKETFLOW_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            // Debug key, like the phone app's builds: the Data Layer only pairs apps with the same signature.
-            signingConfig = signingConfigs.getByName("debug")
+            // Same key as the phone app: the Data Layer only pairs apps with the same signature.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             // A small APK installs before the watch's Wi-Fi debugging connection drops.
             isMinifyEnabled = true
             isShrinkResources = true

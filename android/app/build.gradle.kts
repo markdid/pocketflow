@@ -27,11 +27,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // CI release builds sign with the PocketFlow release key; local builds fall back to the debug key.
+        System.getenv("POCKETFLOW_KEYSTORE")?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("POCKETFLOW_KEYSTORE_PASSWORD")
+                keyAlias = "pocketflow"
+                keyPassword = System.getenv("POCKETFLOW_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // The watch app is signed the same way: the Wearable Data Layer only connects apps with the same key.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }
