@@ -281,6 +281,8 @@ class PocketFlowAccessibilityService : AccessibilityService() {
 
         fun isEnabled(): Boolean = instance != null
 
+        fun isSoftKeyboardOpen(): Boolean = instance?.softKeyboardVisible() == true
+
         /**
          * An open on-screen keyboard means something takes text, even when the editor doesn't expose itself as an
          * editable field (Quill and other custom editors, some web views). A hardware keyboard has no window to go

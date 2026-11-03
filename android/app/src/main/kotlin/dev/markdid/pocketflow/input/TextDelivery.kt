@@ -14,6 +14,7 @@ import android.view.inputmethod.InputMethodManager
 import dev.markdid.pocketflow.PocketFlowApp
 import dev.markdid.pocketflow.accessibility.PocketFlowAccessibilityService
 import dev.markdid.pocketflow.ime.PocketFlowImeService
+import kotlinx.coroutines.delay
 
 /** Gets finished text into whatever the user is typing in. */
 object TextDelivery {
@@ -35,16 +36,41 @@ object TextDelivery {
         return isRemoteDesktop(targetApp().orEmpty()) || PocketFlowAccessibilityService.isRemoteDesktopVisible()
     }
 
-    fun deliver(context: Context, text: String): Result {
+    suspend fun deliver(context: Context, text: String): Result {
         if (text.isEmpty()) return Result(Method.NONE, "Nothing to insert")
 
         if (isRemoteTarget()) return deliverToRemoteDesktop(context, text)
 
         if (PocketFlowImeService.commitTextIfActive(text)) return Result(Method.KEYBOARD)
         if (PocketFlowAccessibilityService.insertText(text)) return Result(Method.ACCESSIBILITY)
+        if (commitThroughOurKeyboard(context, text)) return Result(Method.KEYBOARD)
 
         copyToClipboard(context, text)
         return Result(Method.CLIPBOARD, "Copied. Paste it where you need it.")
+    }
+
+    /**
+     * For editors accessibility can't reach (custom editors that don't report themselves as text fields): with a
+     * keyboard open, something is taking input, so switch to the PocketFlow keyboard just long enough to commit the
+     * text, then back. Waits with delay, not sleep: the keyboard binds to the field on the main thread.
+     */
+    private suspend fun commitThroughOurKeyboard(context: Context, text: String): Boolean {
+        if (!PocketFlowAccessibilityService.isSoftKeyboardOpen() || !isOurImeEnabled(context)) return false
+        val previous = currentIme(context)
+        if (previous == OUR_IME || !switchIme(context, OUR_IME)) return false
+        try {
+            repeat(25) {
+                if (PocketFlowImeService.commitTextIfActive(text)) {
+                    Log.i(TAG, "committed through the PocketFlow keyboard after ${it * 40} ms")
+                    return true
+                }
+                delay(40)
+            }
+            Log.w(TAG, "PocketFlow keyboard didn't bind to the field")
+            return false
+        } finally {
+            if (previous.isNotEmpty()) switchIme(context, previous)
+        }
     }
 
     /**

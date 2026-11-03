@@ -411,7 +411,7 @@ class DictationService : Service() {
         }
     }
 
-    private fun finishDictation(text: String, warning: String?) {
+    private suspend fun finishDictation(text: String, warning: String?) {
         val result = TextDelivery.deliver(this, text)
         setState(
             if (result.method == TextDelivery.Method.NONE) DictationState.error else DictationState.idle,
