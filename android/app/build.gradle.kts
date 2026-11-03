@@ -41,6 +41,7 @@ android {
 
     buildTypes {
         release {
+            proguardFiles("proguard-rules.pro")
             // The watch app is signed the same way: the Wearable Data Layer only connects apps with the same key.
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
