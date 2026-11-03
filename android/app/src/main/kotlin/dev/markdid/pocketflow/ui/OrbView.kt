@@ -102,23 +102,32 @@ class OrbView(context: Context) : View(context) {
             canvas.drawOval(oval, paint)
         }
 
-        // Body, lit from the top left.
+        // Body, lit broadly from above.
         matrix.setScale(base, base)
         matrix.postTranslate(cx, cy)
         p.body.setLocalMatrix(matrix)
         paint.shader = p.body
         canvas.drawPath(path, paint)
 
-        // Inner shade along the bottom, tinted with the accent while listening.
+        // Light scattered through the pearl, gathering low on the side away from the light; tinted with the accent
+        // while listening.
         val save = canvas.save()
         canvas.clipPath(path)
-        val shade = RadialGradient(
-            cx, cy + base * 0.55f, base * 1.1f,
-            blend(p.innerShade, alpha(p.accent, 0.28f), live), Color.TRANSPARENT,
+        val gx = cx + base * 0.1f
+        val gy = cy + base * 0.62f
+        paint.shader = RadialGradient(
+            gx, gy, base * 0.7f,
+            blend(p.glow, alpha(p.accent, 0.28f), live), Color.TRANSPARENT,
             Shader.TileMode.CLAMP,
         )
-        paint.shader = shade
-        canvas.drawCircle(cx, cy + base * 0.55f, base * 1.1f, paint)
+        canvas.drawCircle(gx, gy, base * 0.7f, paint)
+        // A soft darker rim instead of a hard outline, so it holds its shape on screens of its own color.
+        paint.shader = RadialGradient(
+            cx, cy, base * 1.03f,
+            intArrayOf(Color.TRANSPARENT, p.rim), floatArrayOf(0.76f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, base * 1.03f, paint)
         paint.shader = null
         if (asleep > 0.01f) {
             paint.color = alpha(p.background, 0.45f * asleep)
@@ -126,7 +135,7 @@ class OrbView(context: Context) : View(context) {
         }
         canvas.restoreToCount(save)
 
-        // Hairline edge, so the orb holds its shape against screens of its own color.
+        // Faint hairline edge.
         strokePaint.shader = null
         strokePaint.color = p.edge
         strokePaint.strokeWidth = base * 0.035f
@@ -216,7 +225,8 @@ class OrbView(context: Context) : View(context) {
         val body: RadialGradient,
         val accent: Int,
         val shadow: Int,
-        val innerShade: Int,
+        val glow: Int,
+        val rim: Int,
         val glyph: Int,
         val edge: Int,
         val background: Int,
@@ -229,33 +239,34 @@ class OrbView(context: Context) : View(context) {
     companion object {
         private val PEARL = Palette(
             body = RadialGradient(
-                -0.36f, -0.44f, 1.15f,
-                intArrayOf(0xFFFFFFFF.toInt(), 0xFFF1F3F6.toInt(), 0xFFD9DEE6.toInt(), 0xFFC4CAD4.toInt()),
-                floatArrayOf(0f, 0.3f, 0.68f, 1f),
+                -0.15f, -0.6f, 1.5f,
+                intArrayOf(0xFFFFFFFF.toInt(), 0xFFF4F6F9.toInt(), 0xFFE2E7EE.toInt(), 0xFFD5DBE4.toInt()),
+                floatArrayOf(0f, 0.4f, 0.78f, 1f),
                 Shader.TileMode.CLAMP,
             ),
             accent = 0xFF0A6CDB.toInt(),
-            shadow = 0x701E283C,
-            innerShade = 0x40788296,
+            shadow = 0x571E283C,
+            glow = 0xE6FFFFFF.toInt(),
+            rim = 0x2928344B,
             glyph = 0x8C0F1115.toInt(),
-            // A defined edge so the pearl doesn't vanish against white screens.
-            edge = 0x2E0F1115,
+            edge = 0x120F1115,
             background = 0xFFF5F6F8.toInt(),
             haloInner = 0.10f,
             haloOuter = 0.05f,
         )
         private val GRAPHITE = Palette(
             body = RadialGradient(
-                -0.36f, -0.44f, 1.15f,
-                intArrayOf(0xFF5B6378.toInt(), 0xFF323849.toInt(), 0xFF1A1E29.toInt()),
-                floatArrayOf(0f, 0.45f, 1f),
+                -0.15f, -0.6f, 1.5f,
+                intArrayOf(0xFF525A6E.toInt(), 0xFF363C4D.toInt(), 0xFF22262F.toInt()),
+                floatArrayOf(0f, 0.5f, 1f),
                 Shader.TileMode.CLAMP,
             ),
             accent = 0xFF5AA2FF.toInt(),
             shadow = 0x80000000.toInt(),
-            innerShade = 0x66000000,
+            glow = 0x4D96AAD2,
+            rim = 0x59000000,
             glyph = 0xB3FFFFFF.toInt(),
-            edge = 0x1FFFFFFF,
+            edge = 0x0FFFFFFF,
             background = 0xFF14161C.toInt(),
             haloInner = 0.18f,
             haloOuter = 0.09f,

@@ -13,7 +13,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * The floating bubble's listening look: a solid blue disc with live white level bars, which reads at a glance over
+ * The floating bubble's listening look: a blue disc, lit like the pearl, with live white level bars, which reads at a glance over
  * any app. (At rest and while writing the bubble shows the pearl [OrbView].)
  */
 class BubbleView(context: Context) : View(context) {
@@ -55,18 +55,37 @@ class BubbleView(context: Context) : View(context) {
         val shadowRadius = r * 1.35f
         fill.shader = RadialGradient(
             cx, cy + r * 0.18f, shadowRadius,
-            intArrayOf(if (dark) 0x99000000.toInt() else 0x4D0F1115, Color.TRANSPARENT),
+            intArrayOf(if (dark) 0x99000000.toInt() else 0x330F1115, Color.TRANSPARENT),
             floatArrayOf(0.62f, 1f),
             Shader.TileMode.CLAMP,
         )
         canvas.drawCircle(cx, cy + r * 0.18f, shadowRadius, fill)
         fill.shader = null
 
-        // Blue disc with live bars. This view has no other look: it stays blue while it fades out.
-        fill.color = ACCENT
+        // Blue disc lit like the pearl: broad light from above, a glow low inside, a soft darker rim. This view has no
+        // other look: it stays blue while it fades out.
+        fill.shader = RadialGradient(
+            cx - r * 0.15f, cy - r * 0.6f, r * 1.5f,
+            intArrayOf(0xFF3F8DEB.toInt(), ACCENT, 0xFF0758B6.toInt()),
+            floatArrayOf(0f, 0.5f, 1f),
+            Shader.TileMode.CLAMP,
+        )
         canvas.drawCircle(cx, cy, r, fill)
+        fill.shader = RadialGradient(
+            cx + r * 0.1f, cy + r * 0.62f, r * 0.7f,
+            0x8082BEFF.toInt(), Color.TRANSPARENT,
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, r, fill)
+        fill.shader = RadialGradient(
+            cx, cy, r * 1.03f,
+            intArrayOf(Color.TRANSPARENT, 0x47001946), floatArrayOf(0.76f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, r, fill)
+        fill.shader = null
         stroke.strokeWidth = r * 0.05f
-        stroke.color = 0x33FFFFFF
+        stroke.color = 0x1FFFFFFF
         canvas.drawCircle(cx, cy, r - stroke.strokeWidth / 2, stroke)
         drawBars(canvas, cx, cy, r, dt, now)
 
