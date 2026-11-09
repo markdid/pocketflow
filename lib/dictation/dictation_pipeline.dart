@@ -265,7 +265,7 @@ class DictationPipeline {
   ) async {
     var cleaned = await client.chat(
       model: settings.cleanupModel,
-      system: CleanupPrompt.system(style: style, customInstructions: settings.customInstructions),
+      system: CleanupPrompt.system(style: style, customInstructions: settings.customInstructions, appId: appId),
       user: CleanupPrompt.user(
         transcript: transcript,
         vocabulary: Vocabulary.rank(terms).take(80).map((t) => t.term).toList(),
